@@ -37,10 +37,20 @@
 #
 # Customize from here.
 #
+%if ! 0%{?gobuild:1}
+%define gobuild(o:) go build -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n')" -a -v -x %{?**};
+%endif
+
+%global provider        k8s
+%global provider_tld    io
+%global project         kubernetes
+%global repo            cloud-provider-openstack
+# https://k8s.io/kubernetes/cloud-provider-openstack
+%global provider_prefix %{provider}.%{provider_tld}/%{project}/%{repo}
 
 %global golang_version 1.8.1
 %{!?version: %global version 0.2.0}
-%{!?release: %global release 1}
+%{!?release: %global release 2}
 %global package_name cloud-provider-openstack
 %global product_name TODO #
 %global import_path github.com/openshift/cloud-provider-openstack
@@ -74,35 +84,18 @@ Summary: Provisioner for OpenStack Manila
 Provisions volumes using OpenStack Manila API.
 
 %prep
+# cloud-provider-openstack assumes it's compiled in a Go workspace
+# Let's create one
 %if 0%{do_prep}
-%setup -q
+%setup -q -n %{name}
 %endif
 
 %build
-%if 0%{do_build}
-%if 0%{make_redistributable}
-# Create Binaries for all internally defined arches
-%{os_git_vars} make manila-provisioner
-%else
-# Create Binaries only for building arch
-%ifarch x86_64
-  BUILD_PLATFORM="linux/amd64"
-%endif
-%ifarch %{ix86}
-  BUILD_PLATFORM="linux/386"
-%endif
-%ifarch ppc64le
-  BUILD_PLATFORM="linux/ppc64le"
-%endif
-%ifarch %{arm} aarch64
-  BUILD_PLATFORM="linux/arm64"
-%endif
-%ifarch s390x
-  BUILD_PLATFORM="linux/s390x"
-%endif
-OS_ONLY_BUILD_PLATFORMS="${BUILD_PLATFORM}" %{os_git_vars} make manila-provisioner
-%endif
-%endif
+export GOPATH=$(pwd):$(pwd)/vendor:%{gopath}
+mkdir -p src/%{provider}.%{provider_tld}
+ln -s ../../../%{name} src/%{provider}.%{provider_tld}/
+cd src/%{provider}.%{provider_tld}/%{name}
+%gobuild -o manila-provisioner cmd/manila-provisioner/main.go
 
 %install
 
@@ -124,5 +117,8 @@ done
 %files
 
 %changelog
+* Tue Sep 18 2018 Tomas Smetana <tsmetana@redhat.com> 0.2.0-2
+- Create complete Go workspace for the build
+
 * Thu Aug 23 2018 Tomas Smetana <tsmetana@redhat.com> 0.2.0-1
 - Initial package: Manila provisioner subpackage only

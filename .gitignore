@@ -5,7 +5,7 @@
 *.swp
 .idea
 .DS_Store
-vendor
+#vendor
 
 # OSX leaves these everywhere on SMB shares
 ._*
