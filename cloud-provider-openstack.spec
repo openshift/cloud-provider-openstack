@@ -114,8 +114,6 @@ done
 %license LICENSE
 %{_bindir}/manila-provisioner
 
-%files
-
 %changelog
 * Tue Sep 18 2018 Tomas Smetana <tsmetana@redhat.com> 0.2.0-2
 - Create complete Go workspace for the build
