@@ -93,7 +93,7 @@ Provisions volumes using OpenStack Manila API.
 %build
 export GOPATH=$(pwd):$(pwd)/vendor:%{gopath}
 mkdir -p src/%{provider}.%{provider_tld}
-ln -s ../../../%{name} src/%{provider}.%{provider_tld}/
+ln -s ../../../$(basename $(pwd)) src/%{provider}.%{provider_tld}/
 cd src/%{provider}.%{provider_tld}/%{name}
 %gobuild -o manila-provisioner cmd/manila-provisioner/main.go
 
