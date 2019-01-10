@@ -1,12 +1,12 @@
-FROM openshift/origin-base
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.10 AS builder
+WORKDIR /go/src/k8s.io/cloud-provider-openstack
+COPY . .
+RUN go build -o manila-provisioner cmd/manila-provisioner/main.go
 
-RUN INSTALL_PKGS="atomic-openshift-manila-provisioner" && \
-    yum --enablerepo=origin-local-release install -y ${INSTALL_PKGS} && \
-    rpm -V ${INSTALL_PKGS} && \
-    yum clean all
+FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+COPY --from=builder /go/src/k8s.io/cloud-provider-openstack/manila-provisioner /
 
+ENTRYPOINT ["/manila-provisioner"]
 LABEL io.k8s.display-name="OpenShift Manila provisioner" \
       io.k8s.description="This is a component of OpenShift Container Platform  which allows to provision persistent volumes using OpenStack Manila API." \
-io.openshift.tags="openshift,manila,openstack"
-
-ENTRYPOINT ["/usr/bin/manila-provisioner"]
+      io.openshift.tags="openshift,manila,openstack"
