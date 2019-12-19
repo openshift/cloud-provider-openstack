@@ -1,4 +1,4 @@
-FROM openshift/origin-release:golang-1.10
+FROM openshift/origin-release:golang-1.13
 COPY . /go/src/k8s.io/cloud-provider-openstack
 RUN cd /go/src/k8s.io/cloud-provider-openstack && \
     go build -o manila-provisioner cmd/manila-provisioner/main.go
