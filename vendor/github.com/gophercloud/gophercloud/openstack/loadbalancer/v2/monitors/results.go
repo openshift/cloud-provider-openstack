@@ -50,6 +50,10 @@ type Monitor struct {
 	// member to INACTIVE. A valid value is from 1 to 10.
 	MaxRetries int `json:"max_retries"`
 
+	// Number of allowed connection failures before changing the status of the
+	// member to Error. A valid value is from 1 to 10.
+	MaxRetriesDown int `json:"max_retries_down"`
+
 	// The HTTP method that the monitor uses for requests.
 	HTTPMethod string `json:"http_method"`
 
@@ -74,6 +78,9 @@ type Monitor struct {
 	// The provisioning status of the Monitor.
 	// This value is ACTIVE, PENDING_* or ERROR.
 	ProvisioningStatus string `json:"provisioning_status"`
+
+	// The operating status of the monitor.
+	OperatingStatus string `json:"operating_status"`
 }
 
 // MonitorPage is the page returned by a pager when traversing over a

@@ -30,7 +30,7 @@ type ListOpts struct {
 	ID                 string `q:"id"`
 	OperatingStatus    string `q:"operating_status"`
 	Name               string `q:"name"`
-	Flavor             string `q:"flavor"`
+	FlavorID           string `q:"flavor_id"`
 	Provider           string `q:"provider"`
 	Limit              int    `q:"limit"`
 	Marker             string `q:"marker"`
@@ -100,7 +100,7 @@ type CreateOpts struct {
 	AdminStateUp *bool `json:"admin_state_up,omitempty"`
 
 	// The UUID of a flavor.
-	Flavor string `json:"flavor,omitempty"`
+	FlavorID string `json:"flavor_id,omitempty"`
 
 	// The name of the provider.
 	Provider string `json:"provider,omitempty"`
@@ -141,10 +141,10 @@ type UpdateOptsBuilder interface {
 // operation.
 type UpdateOpts struct {
 	// Human-readable name for the Loadbalancer. Does not have to be unique.
-	Name string `json:"name,omitempty"`
+	Name *string `json:"name,omitempty"`
 
 	// Human-readable description for the Loadbalancer.
-	Description string `json:"description,omitempty"`
+	Description *string `json:"description,omitempty"`
 
 	// The administrative state of the Loadbalancer. A valid value is true (UP)
 	// or false (DOWN).
@@ -158,7 +158,7 @@ func (opts UpdateOpts) ToLoadBalancerUpdateMap() (map[string]interface{}, error)
 
 // Update is an operation which modifies the attributes of the specified
 // LoadBalancer.
-func Update(c *gophercloud.ServiceClient, id string, opts UpdateOpts) (r UpdateResult) {
+func Update(c *gophercloud.ServiceClient, id string, opts UpdateOptsBuilder) (r UpdateResult) {
 	b, err := opts.ToLoadBalancerUpdateMap()
 	if err != nil {
 		r.Err = err
@@ -194,5 +194,11 @@ func CascadingDelete(c *gophercloud.ServiceClient, id string) (r DeleteResult) {
 // GetStatuses will return the status of a particular LoadBalancer.
 func GetStatuses(c *gophercloud.ServiceClient, id string) (r GetStatusesResult) {
 	_, r.Err = c.Get(statusRootURL(c, id), &r.Body, nil)
+	return
+}
+
+// GetStats will return the shows the current statistics of a particular LoadBalancer.
+func GetStats(c *gophercloud.ServiceClient, id string) (r StatsResult) {
+	_, r.Err = c.Get(statisticsRootURL(c, id), &r.Body, nil)
 	return
 }

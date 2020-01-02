@@ -42,7 +42,7 @@ func Create(client *gophercloud.ServiceClient, opts CreateOptsBuilder) (r Create
 		return
 	}
 	_, r.Err = client.Post(createURL(client), b, &r.Body, &gophercloud.RequestOpts{
-		OkCodes: []int{200, 201},
+		OkCodes: []int{200, 201, 202},
 	})
 	return
 }
@@ -110,8 +110,8 @@ type UpdateOptsBuilder interface {
 // to the volumes.Update function. For more information about the parameters, see
 // the Volume object.
 type UpdateOpts struct {
-	Name        string            `json:"display_name,omitempty"`
-	Description string            `json:"display_description,omitempty"`
+	Name        *string           `json:"display_name,omitempty"`
+	Description *string           `json:"display_description,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
