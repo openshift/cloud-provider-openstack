@@ -59,10 +59,10 @@ type syncConfig struct {
 	NamespaceFormat string `yaml:"namespace-format"`
 
 	// List of project ids to exclude from syncing.
-	ProjectBlackList []string `yaml:"projects-blacklist"`
+	ProjectDenyList []string `yaml:"projects-denylist"`
 
 	// List of project names to exclude from syncing.
-	ProjectNameBlackList []string `yaml:"projects-name-blacklist"`
+	ProjectNameDenyList []string `yaml:"projects-name-denylist"`
 
 	// List of role mappings that will apply to the user info after authentication.
 	RoleMaps []*roleMap `yaml:"role-mappings"`
@@ -159,16 +159,16 @@ func (s *Syncer) syncData(u *userInfo) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, p := range s.syncConfig.ProjectBlackList {
+	for _, p := range s.syncConfig.ProjectDenyList {
 		if u.Extra[ProjectID][0] == p {
-			klog.Infof("Project %v is in black list. Skipping.", p)
+			klog.Infof("Project %v is in deny list. Skipping.", p)
 			return nil
 		}
 	}
 
-	for _, p := range s.syncConfig.ProjectNameBlackList {
+	for _, p := range s.syncConfig.ProjectNameDenyList {
 		if u.Extra[ProjectName][0] == p {
-			klog.Infof("Project %v is in black list. Skipping.", p)
+			klog.Infof("Project %v is in deny list. Skipping.", p)
 			return nil
 		}
 	}

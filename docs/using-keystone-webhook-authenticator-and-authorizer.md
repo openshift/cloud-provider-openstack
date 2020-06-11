@@ -481,7 +481,7 @@ The version 2 definition could be used together with version 1 but will
 take precedence over version 1 if both are defined. The version 1
 definition is still supported but may be considered deprecated in the future.
 
-The authorization policy definition is based on whitelist, which means
+The authorization policy definition is based on allowlist, which means
 the operation is allowed if *ANY* rule defined in the permissions is
 satisfied.
 

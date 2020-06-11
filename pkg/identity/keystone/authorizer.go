@@ -334,7 +334,7 @@ func (a *Authorizer) Authorize(attributes authorizer.Attributes) (authorized aut
 
 	klog.V(4).Infof("Request userRoles: %s, userProjects: %s", userRoles.List(), userProjects.List())
 
-	// The permission is whitelist. Make sure we go through all the policies that match the user roles and projects. If
+	// The permission is allowlist. Make sure we go through all the policies that match the user roles and projects. If
 	// the operation is allowed explicitly, stop the loop and return "allowed".
 	for _, p := range a.pl {
 		policyRoles := sets.NewString()
