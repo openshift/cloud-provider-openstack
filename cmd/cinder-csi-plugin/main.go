@@ -44,6 +44,8 @@ func init() {
 
 func main() {
 
+	panic("THIS IS A CRASH-TEST")
+
 	flag.CommandLine.Parse([]string{})
 
 	cmd := &cobra.Command{
