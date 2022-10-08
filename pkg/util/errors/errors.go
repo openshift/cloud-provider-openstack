@@ -43,6 +43,10 @@ var ErrNoRouterID = errors.New("router-id not set in cloud provider config")
 var ErrNoNodeInformer = errors.New("node informer is not yet initialized")
 
 func IsNotFound(err error) bool {
+	if err == ErrNotFound {
+		return true
+	}
+
 	if _, ok := err.(gophercloud.ErrDefault404); ok {
 		return true
 	}
@@ -55,10 +59,6 @@ func IsNotFound(err error) bool {
 		if errCode.Actual == http.StatusNotFound {
 			return true
 		}
-	}
-
-	if err == ErrNotFound {
-		return true
 	}
 
 	return false

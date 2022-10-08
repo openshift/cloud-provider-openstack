@@ -985,7 +985,7 @@ func (lbaas *LbaasV2) deleteListeners(lbID string, listenerList []listeners.List
 		klog.InfoS("Deleting listener", "listenerID", listener.ID, "lbID", lbID)
 
 		pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
-		if err != nil && err != openstackutil.ErrNotFound {
+		if err != nil && err != cpoerrors.ErrNotFound {
 			return fmt.Errorf("error getting pool for obsolete listener %s: %v", listener.ID, err)
 		}
 		if pool != nil {
@@ -1014,7 +1014,7 @@ func (lbaas *LbaasV2) deleteOctaviaListeners(lbID string, listenerList []listene
 			klog.InfoS("Deleting listener", "listenerID", listener.ID, "lbID", lbID)
 
 			pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
-			if err != nil && err != openstackutil.ErrNotFound {
+			if err != nil && err != cpoerrors.ErrNotFound {
 				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 			}
 			if pool != nil {
@@ -1244,7 +1244,7 @@ func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1
 // Make sure the pool is created for the Service, nodes are added as pool members.
 func (lbaas *LbaasV2) ensureOctaviaPool(lbID string, name string, listener *listeners.Listener, service *corev1.Service, port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) (*v2pools.Pool, error) {
 	pool, err := openstackutil.GetPoolByListener(lbaas.lb, lbID, listener.ID)
-	if err != nil && err != openstackutil.ErrNotFound {
+	if err != nil && err != cpoerrors.ErrNotFound {
 		return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 	}
 
@@ -2351,7 +2351,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		oldListeners = popListener(oldListeners, listener.ID)
 
 		pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-		if err != nil && err != openstackutil.ErrNotFound {
+		if err != nil && err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool == nil {
@@ -2467,7 +2467,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(4).Infof("Deleting obsolete listener %s:", listener.ID)
 		// get pool for listener
 		pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-		if err != nil && err != openstackutil.ErrNotFound {
+		if err != nil && err != cpoerrors.ErrNotFound {
 			return nil, fmt.Errorf("error getting pool for obsolete listener %s: %v", listener.ID, err)
 		}
 		if pool != nil {
@@ -3373,7 +3373,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeletedLegacy(loadbalancer *loadbalancer
 	var monitorIDs []string
 	for _, listener := range listenerList {
 		pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-		if err != nil && err != openstackutil.ErrNotFound {
+		if err != nil && err != cpoerrors.ErrNotFound {
 			return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 		}
 		if pool != nil {
@@ -3423,7 +3423,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		// This may happen when this Service creation was failed previously.
 		loadbalancer, err = getLoadbalancerByName(lbaas.lb, lbName, legacyName)
 	}
-	if err != nil && err != cpoerrors.ErrNotFound {
+	if err != nil && !cpoerrors.IsNotFound(err) {
 		return err
 	}
 	if loadbalancer == nil {
@@ -3529,7 +3529,7 @@ func (lbaas *LbaasV2) ensureLoadBalancerDeleted(ctx context.Context, clusterName
 		var monitorIDs []string
 		for _, listener := range listenerList {
 			pool, err := openstackutil.GetPoolByListener(lbaas.lb, loadbalancer.ID, listener.ID)
-			if err != nil && err != openstackutil.ErrNotFound {
+			if err != nil && err != cpoerrors.ErrNotFound {
 				return fmt.Errorf("error getting pool for listener %s: %v", listener.ID, err)
 			}
 			if pool != nil {
