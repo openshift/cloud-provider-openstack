@@ -664,7 +664,7 @@ func (lbaas *LbaasV2) createFullyPopulatedOctaviaLoadBalancer(name, clusterName 
 		svcConf.lbMemberSubnetID = loadbalancer.VipSubnetID
 	}
 
-	if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+	if loadbalancer, err = openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 		return nil, err
 	}
 
@@ -2311,7 +2311,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 		klog.V(2).Infof("LoadBalancer %s(%s) already exists", loadbalancer.Name, loadbalancer.ID)
 	}
 
-	if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+	if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 		return nil, err
 	}
 
@@ -2433,7 +2433,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 						return nil, fmt.Errorf("error creating LB pool member for node: %s, %v", node.Name, err)
 					}
 
-					if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+					if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 						return nil, err
 					}
 				} else {
@@ -2456,7 +2456,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 			}
 			_ = mc.ObserveRequest(nil)
 
-			if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+			if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 				return nil, err
 			}
 		}
@@ -2523,7 +2523,7 @@ func (lbaas *LbaasV2) ensureLoadBalancer(ctx context.Context, clusterName string
 				}
 				_ = mc.ObserveRequest(nil)
 
-				if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+				if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 					return nil, err
 				}
 			}
@@ -3175,7 +3175,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 					return err
 				}
 
-				if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+				if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 					return err
 				}
 			}
@@ -3194,7 +3194,7 @@ func (lbaas *LbaasV2) updateLoadBalancer(ctx context.Context, clusterName string
 			}
 			_ = mc.ObserveRequest(nil)
 
-			if err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
+			if _, err := openstackutil.WaitLoadbalancerActive(lbaas.lb, loadbalancer.ID); err != nil {
 				return err
 			}
 		}
