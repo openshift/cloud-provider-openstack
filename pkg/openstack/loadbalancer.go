@@ -670,7 +670,7 @@ func (lbaas *LbaasV2) GetLoadBalancer(ctx context.Context, clusterName string, s
 	} else {
 		loadbalancer, err = getLoadbalancerByName(lbaas.lb, name, legacyName)
 	}
-	if err == cpoerrors.ErrNotFound {
+	if err != nil && cpoerrors.IsNotFound(err) {
 		return nil, false, nil
 	}
 	if loadbalancer == nil {
@@ -739,7 +739,7 @@ func nodeAddressForLB(node *corev1.Node) (string, error) {
 	return "", cpoerrors.ErrNoAddressFound
 }
 
-//getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
+// getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
 func getStringFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting string) string {
 	klog.V(4).Infof("getStringFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
@@ -756,7 +756,7 @@ func getStringFromServiceAnnotation(service *corev1.Service, annotationKey strin
 	return defaultSetting
 }
 
-//getIntFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's integer value or a specified defaultSetting
+// getIntFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's integer value or a specified defaultSetting
 func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting int) int {
 	klog.V(4).Infof("getIntFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
@@ -773,7 +773,7 @@ func getIntFromServiceAnnotation(service *corev1.Service, annotationKey string, 
 	return defaultSetting
 }
 
-//getBoolFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's boolean value or a specified defaultSetting
+// getBoolFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's boolean value or a specified defaultSetting
 func getBoolFromServiceAnnotation(service *corev1.Service, annotationKey string, defaultSetting bool) bool {
 	klog.V(4).Infof("getBoolFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
 	if annotationValue, ok := service.Annotations[annotationKey]; ok {
@@ -1172,7 +1172,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 	return nil
 }
 
-//buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
+// buildMonitorCreateOpts returns a v2monitors.CreateOpts without PoolID for consumption of both, fully popuplated Loadbalancers and Monitors.
 func (lbaas *LbaasV2) buildMonitorCreateOpts(svcConf *serviceConfig, port corev1.ServicePort) v2monitors.CreateOpts {
 	monitorProtocol := string(port.Protocol)
 	if port.Protocol == corev1.ProtocolUDP {
@@ -1286,7 +1286,7 @@ func (lbaas *LbaasV2) buildPoolCreateOpt(listenerProtocol string, service *corev
 	}
 }
 
-//buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
+// buildBatchUpdateMemberOpts returns v2pools.BatchUpdateMemberOpts array for Services and Nodes alongside a list of member names
 func (lbaas *LbaasV2) buildBatchUpdateMemberOpts(port corev1.ServicePort, nodes []*corev1.Node, svcConf *serviceConfig) ([]v2pools.BatchUpdateMemberOpts, sets.String, error) {
 	var members []v2pools.BatchUpdateMemberOpts
 	newMembers := sets.NewString()
@@ -1411,7 +1411,7 @@ func (lbaas *LbaasV2) ensureOctaviaListener(lbID string, name string, curListene
 	return listener, nil
 }
 
-//buildListenerCreateOpt returns listeners.CreateOpts for a specific Service port and configuration
+// buildListenerCreateOpt returns listeners.CreateOpts for a specific Service port and configuration
 func (lbaas *LbaasV2) buildListenerCreateOpt(port corev1.ServicePort, svcConf *serviceConfig) listeners.CreateOpts {
 	listenerProtocol := listeners.Protocol(port.Protocol)
 
@@ -1500,7 +1500,10 @@ func (lbaas *LbaasV2) checkServiceUpdate(service *corev1.Service, nodes []*corev
 	svcConf.enableProxyProtocol = useProxyProtocol
 
 	svcConf.tlsContainerRef = getStringFromServiceAnnotation(service, ServiceAnnotationTlsContainerRef, lbaas.opts.TlsContainerRef)
-
+	svcConf.enableMonitor = getBoolFromServiceAnnotation(service, ServiceAnnotationLoadBalancerEnableHealthMonitor, lbaas.opts.CreateMonitor)
+	if svcConf.enableMonitor && lbaas.opts.UseOctavia && service.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal && service.Spec.HealthCheckNodePort > 0 {
+		svcConf.healthCheckNodePort = int(service.Spec.HealthCheckNodePort)
+	}
 	return nil
 }
 
@@ -1851,9 +1854,6 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			// After all ports have been processed, remaining listeners are removed if they were created by this Service.
-			curListeners = popListener(curListeners, listener.ID)
-
 			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cutString(fmt.Sprintf("pool_%d_%s", portIndex, lbName)), listener, service, port, nodes, svcConf)
 			if err != nil {
 				return nil, err
@@ -1862,6 +1862,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			if err := lbaas.ensureOctaviaHealthMonitor(loadbalancer.ID, cutString(fmt.Sprintf("monitor_%d_%s)", portIndex, lbName)), pool, port, svcConf); err != nil {
 				return nil, err
 			}
+
+			// After all ports have been processed, remaining listeners are removed if they were created by this Service.
+			// The remove of the listener must always happen at the end of the loop to avoid wrong assignment.
+			// Modifying the curListeners would also change the mapping.
+			curListeners = popListener(curListeners, listener.ID)
 		}
 
 		// Deal with the remaining listeners, delete the listener if it was created by this Service previously.
