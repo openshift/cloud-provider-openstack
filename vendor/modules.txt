@@ -134,7 +134,6 @@ github.com/google/uuid
 ## explicit; go 1.14
 github.com/gophercloud/gophercloud
 github.com/gophercloud/gophercloud/openstack
-github.com/gophercloud/gophercloud/openstack/blockstorage/apiversions
 github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions
 github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes
 github.com/gophercloud/gophercloud/openstack/blockstorage/v3/snapshots
