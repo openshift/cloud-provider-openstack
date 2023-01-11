@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud/openstack"
-	"github.com/gophercloud/gophercloud/openstack/blockstorage/apiversions"
 	volumeexpand "github.com/gophercloud/gophercloud/openstack/blockstorage/extensions/volumeactions"
 	"github.com/gophercloud/gophercloud/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/volumeattach"
@@ -49,14 +48,6 @@ const (
 )
 
 var volumeErrorStates = [...]string{"error", "error_extending", "error_deleting"}
-
-func (os *OpenStack) CheckBlockStorageAPI() error {
-	_, err := apiversions.List(os.blockstorage).AllPages()
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 // CreateVolume creates a volume of given size
 func (os *OpenStack) CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourcevolID string, tags *map[string]string) (*volumes.Volume, error) {
@@ -232,7 +223,7 @@ func (os *OpenStack) WaitDiskAttached(instanceID string, volumeID string) error 
 	return err
 }
 
-//WaitVolumeTargetStatus waits for volume to be in target state
+// WaitVolumeTargetStatus waits for volume to be in target state
 func (os *OpenStack) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
 	backoff := wait.Backoff{
 		Duration: operationFinishInitDelay,
@@ -367,7 +358,7 @@ func (os *OpenStack) ExpandVolume(volumeID string, status string, newSize int) e
 	return fmt.Errorf("volume cannot be resized, when status is %s", status)
 }
 
-//GetMaxVolLimit returns max vol limit
+// GetMaxVolLimit returns max vol limit
 func (os *OpenStack) GetMaxVolLimit() int64 {
 	if os.bsOpts.NodeVolumeAttachLimit > 0 && os.bsOpts.NodeVolumeAttachLimit <= 256 {
 		return os.bsOpts.NodeVolumeAttachLimit
