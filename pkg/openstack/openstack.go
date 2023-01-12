@@ -122,6 +122,7 @@ type NetworkingOpts struct {
 	IPv6SupportDisabled bool     `gcfg:"ipv6-support-disabled"`
 	PublicNetworkName   []string `gcfg:"public-network-name"`
 	InternalNetworkName []string `gcfg:"internal-network-name"`
+	AddressSortOrder    string   `gcfg:"address-sort-order"`
 }
 
 // RouterOpts is used for Neutron routes
@@ -178,7 +179,7 @@ func init() {
 
 // Initialize passes a Kubernetes clientBuilder interface to the cloud provider
 func (os *OpenStack) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-	clientset := clientBuilder.ClientOrDie("cloud-provider-openstack")
+	clientset := clientBuilder.ClientOrDie("cloud-controller-manager")
 	os.kclient = clientset
 }
 
