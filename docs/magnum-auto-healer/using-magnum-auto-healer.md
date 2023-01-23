@@ -28,7 +28,7 @@ Like cluster-autoscaler, magnum-auto-healer is implemented to use together with 
 There are some considerations when we were designing the magnum-auto-healer service:
 
 - We want to have a single component for the cluster autohealing purpose. There are already some other components out there in the community to deal with some specific tasks separately, combining them together with some customization may work, but will lead to much complexity and maintenance overhead.
-- Support both master nodes and worker nodes.
+- Support both control-plane nodes and worker nodes.
 - Cluster administrator is able to disable the autohealing feature on the fly, which is very important for the cluster operations like upgrade or scheduled maintenance.
 - The Kubernetes cluster is not necessary to be exposed to either the public or the OpenStack control plane. For example, In Magnum, the end user may create a private cluster which is not accessible even from Magnum control services.
 - The health check should be pluggable. Deployers should be able to write their own health check plugin with customized health check parameters.
@@ -38,7 +38,7 @@ There are some considerations when we were designing the magnum-auto-healer serv
 
 ### Prerequisites
 
-1. A multi-node cluster(3 masters and 3 workers) is created in Magnum.
+1. A multi-node cluster(3 control-planes and 3 workers) is created in Magnum.
 
     ```
     $ openstack coe cluster list
@@ -64,7 +64,7 @@ There are some considerations when we were designing the magnum-auto-healer serv
 
 ### Deploy magnum-auto-healer
 
-It's recommended to run magnum-auto-healer service as a DaemonSet on the master nodes, the service is running in active-passive mode using leader election mechanism. There is a sample manifest file in `manifests/magnum-auto-healer/magnum-auto-healer.yaml`, you need to change some variables as needed before actually running `kubectl apply` command. The following commands are just examples:
+It's recommended to run magnum-auto-healer service as a DaemonSet on the control-plane nodes, the service is running in active-passive mode using leader election mechanism. There is a sample manifest file in `manifests/magnum-auto-healer/magnum-auto-healer.yaml`, you need to change some variables as needed before actually running `kubectl apply` command. The following commands are just examples:
 
 ```shell
 magnum_cluster_uuid=c418c335-0e52-42fc-bd68-baa8d264e072
@@ -73,7 +73,7 @@ user_id=ceb61464a3d341ebabdf97d1d4b97099
 user_project_id=b23a5e41d1af4c20974bf58b4dff8e5a
 password=password
 region=RegionOne
-image=k8scloudprovider/magnum-auto-healer:latest
+image=k8scloudprovider/magnum-auto-healer:v1.24.0
 
 cat <<EOF | kubectl apply -f -
 ---
@@ -163,7 +163,7 @@ spec:
         - effect: NoExecute
           operator: Exists
       nodeSelector:
-        node-role.kubernetes.io/master: ""
+        node-role.kubernetes.io/control-plane: ""
       containers:
         - name: magnum-auto-healer
           image: ${image}
