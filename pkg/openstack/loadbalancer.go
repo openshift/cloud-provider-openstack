@@ -94,6 +94,7 @@ const (
 	ServiceAnnotationLoadBalancerHealthMonitorTimeout    = "loadbalancer.openstack.org/health-monitor-timeout"
 	ServiceAnnotationLoadBalancerHealthMonitorMaxRetries = "loadbalancer.openstack.org/health-monitor-max-retries"
 	ServiceAnnotationLoadBalancerLoadbalancerHostname    = "loadbalancer.openstack.org/hostname"
+	ServiceAnnotationLoadBalancerAddress                 = "loadbalancer.openstack.org/load-balancer-address"
 	// revive:disable:var-naming
 	ServiceAnnotationTlsContainerRef = "loadbalancer.openstack.org/default-tls-container-ref"
 	// revive:enable:var-naming
@@ -1956,11 +1957,13 @@ func (sp *servicePatcher) Patch(ctx context.Context, err error) error {
 	return utilerrors.NewAggregate([]error{err, perr})
 }
 
-func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, annotName, annotValue string) {
+func (lbaas *LbaasV2) updateServiceAnnotations(service *corev1.Service, annotations map[string]string) {
 	if service.ObjectMeta.Annotations == nil {
 		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	service.ObjectMeta.Annotations[annotName] = annotValue
+	for key, value := range annotations {
+		service.ObjectMeta.Annotations[key] = value
+	}
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -2115,7 +2118,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	// Add annotation to Service and add LB name to load balancer tags.
-	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerID, loadbalancer.ID)
+	annotationUpdate := map[string]string{
+		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
+		ServiceAnnotationLoadBalancerAddress: addr,
+	}
+	lbaas.updateServiceAnnotations(service, annotationUpdate)
 	if svcConf.supportLBTags {
 		lbTags := loadbalancer.Tags
 		if !cpoutil.Contains(lbTags, lbName) {
