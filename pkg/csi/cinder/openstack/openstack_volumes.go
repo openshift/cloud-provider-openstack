@@ -148,7 +148,8 @@ func (os *OpenStack) DeleteVolume(volumeID string) error {
 		return fmt.Errorf("Cannot delete the volume %q, it's still attached to a node", volumeID)
 	}
 
-	err = volumes.Delete(os.blockstorage, volumeID, nil).ExtractErr()
+	opts := volumes.DeleteOpts{Cascade: true}
+	err = volumes.Delete(os.blockstorage, volumeID, opts).ExtractErr()
 	return err
 }
 
