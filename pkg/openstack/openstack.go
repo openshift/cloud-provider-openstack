@@ -97,7 +97,6 @@ type LoadBalancerOpts struct {
 	MonitorMaxRetries     uint                `gcfg:"monitor-max-retries"`
 	MonitorMaxRetriesDown uint                `gcfg:"monitor-max-retries-down"`
 	ManageSecurityGroups  bool                `gcfg:"manage-security-groups"`
-	NodeSecurityGroupIDs  []string            // Do not specify, get it automatically when enable manage-security-groups. TODO(FengyunPan): move it into cache
 	InternalLB            bool                `gcfg:"internal-lb"` // default false
 	CascadeDelete         bool                `gcfg:"cascade-delete"`
 	FlavorID              string              `gcfg:"flavor-id"`
