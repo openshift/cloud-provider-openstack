@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/gophercloud/gophercloud"
-	"github.com/gophercloud/gophercloud/openstack/compute/v2/extensions/attachinterfaces"
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
+	"github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -373,10 +373,10 @@ func TestNodeAddresses(t *testing.T) {
 		PublicNetworkName: []string{"public"},
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -387,7 +387,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -452,10 +452,10 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		PublicNetworkName: []string{"pub-net"},
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -466,7 +466,7 @@ func TestNodeAddressesCustomPublicNetwork(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -525,10 +525,10 @@ func TestNodeAddressesCustomPublicNetworkWithIntersectingFixedIP(t *testing.T) {
 		PublicNetworkName: []string{"pub-net"},
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -543,7 +543,7 @@ func TestNodeAddressesCustomPublicNetworkWithIntersectingFixedIP(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -613,10 +613,10 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 		InternalNetworkName: []string{"private", "also-private"},
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -627,7 +627,7 @@ func TestNodeAddressesMultipleCustomInternalNetworks(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -697,10 +697,10 @@ func TestNodeAddressesOneInternalNetwork(t *testing.T) {
 		InternalNetworkName: []string{"also-private"},
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -711,7 +711,7 @@ func TestNodeAddressesOneInternalNetwork(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -773,10 +773,10 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		IPv6SupportDisabled: true,
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -787,7 +787,7 @@ func TestNodeAddressesIPv6Disabled(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
@@ -854,10 +854,10 @@ func TestNodeAddressesWithAddressSortOrderOptions(t *testing.T) {
 		AddressSortOrder:  "10.0.0.0/8, 50.56.176.0/24, 2001:4800::/32",
 	}
 
-	interfaces := []attachinterfaces.Interface{
+	ports := []ports.Port{
 		{
-			PortState: "ACTIVE",
-			FixedIPs: []attachinterfaces.FixedIP{
+			Status: "ACTIVE",
+			FixedIPs: []ports.IP{
 				{
 					IPAddress: "10.0.0.32",
 				},
@@ -868,7 +868,7 @@ func TestNodeAddressesWithAddressSortOrderOptions(t *testing.T) {
 		},
 	}
 
-	addrs, err := nodeAddresses(&srv, interfaces, networkingOpts)
+	addrs, err := nodeAddresses(&srv, ports, networkingOpts)
 	if err != nil {
 		t.Fatalf("nodeAddresses returned error: %v", err)
 	}
