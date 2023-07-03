@@ -1099,7 +1099,7 @@ func (lbaas *LbaasV2) ensureOctaviaHealthMonitor(lbID string, name string, pool 
 			MaxRetriesDown: svcConf.healthMonitorMaxRetriesDown,
 		}
 		klog.Infof("Updating health monitor %s updateOpts %+v", monitorID, updateOpts)
-		return openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts)
+		return openstackutil.UpdateHealthMonitor(lbaas.lb, monitorID, updateOpts, lbID)
 	}
 
 	return nil
