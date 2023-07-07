@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/container-storage-interface/spec v1.7.0
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gophercloud/gophercloud v1.2.1-0.20230227135528-e7de1a394a6e
 	github.com/gophercloud/utils v0.0.0-20221207145018-e8fba78967ca
 	github.com/hashicorp/go-version v1.6.0
