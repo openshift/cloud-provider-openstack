@@ -2192,7 +2192,7 @@ func (lbaas *LbaasV2) UpdateLoadBalancer(ctx context.Context, clusterName string
 
 func compareSecurityGroupRuleAndCreateOpts(rule rules.SecGroupRule, opts rules.CreateOpts) bool {
 	return rule.Direction == string(opts.Direction) &&
-		rule.Protocol == string(opts.Protocol) &&
+		strings.EqualFold(rule.Protocol, string(opts.Protocol)) &&
 		rule.EtherType == string(opts.EtherType) &&
 		rule.RemoteIPPrefix == opts.RemoteIPPrefix &&
 		rule.PortRangeMin == opts.PortRangeMin &&
@@ -2318,10 +2318,11 @@ func (lbaas *LbaasV2) ensureAndUpdateOctaviaSecurityGroup(clusterName string, ap
 			continue
 		}
 		for _, cidr := range cidrs {
+			protocol := strings.ToLower(string(port.Protocol)) // K8s uses TCP, Neutron uses tcp, etc.
 			wantedRules = append(wantedRules,
 				rules.CreateOpts{
 					Direction:      rules.DirIngress,
-					Protocol:       rules.RuleProtocol(port.Protocol),
+					Protocol:       rules.RuleProtocol(protocol),
 					EtherType:      etherType,
 					RemoteIPPrefix: cidr,
 					SecGroupID:     lbSecGroupID,
