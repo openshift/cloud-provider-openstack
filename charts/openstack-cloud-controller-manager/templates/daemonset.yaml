@@ -25,6 +25,8 @@ spec:
       labels:
         {{- include "occm.controllermanager.labels" . | nindent 8 }}
     spec:
+      imagePullSecrets: 
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
