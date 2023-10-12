@@ -1,0 +1,10 @@
+# See the CONTRIBUTING docs: https://github.com/openshift/origin/blob/master/CONTRIBUTING.adoc
+
+approvers:
+  - shiftstack-team
+  - cloud-team
+  - storage-team
+reviewers:
+  - shiftstack-team
+component: "Installer"
+subcomponent: "OpenShift on OpenStack"
