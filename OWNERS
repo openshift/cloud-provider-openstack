@@ -1,10 +1,15 @@
-# See the CONTRIBUTING docs: https://github.com/openshift/origin/blob/master/CONTRIBUTING.adoc
-
+emeritus_approvers:
+- chrigl
+- lingxiankong
+- ramineni
 approvers:
-  - shiftstack-team
-  - cloud-team
-  - storage-team
+- dulek
+- jichenjc
+- kayrus
+- zetaab
 reviewers:
-  - shiftstack-team
-component: "Installer"
-subcomponent: "OpenShift on OpenStack"
+- dulek
+- jichenjc
+- kayrus
+- mdbooth
+- zetaab
