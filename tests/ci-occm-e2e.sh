@@ -36,6 +36,7 @@ PR_BRANCH="${PULL_BASE_REF:-master}"
 CONFIG_ANSIBLE="${CONFIG_ANSIBLE:-"true"}"
 RESOURCE_TYPE="${RESOURCE_TYPE:-"gce-project"}"
 ARTIFACTS="${ARTIFACTS:-${PWD}/_artifacts}"
+OCTAVIA_PROVIDER="${OCTAVIA_PROVIDER:-""}"
 mkdir -p "${ARTIFACTS}/logs"
 
 cleanup() {
@@ -44,7 +45,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 -m pip install requests ansible
+apt-get update
+apt-get install -y python3-requests ansible
 
 # If BOSKOS_HOST is set then acquire a resource of type ${RESOURCE_TYPE} from Boskos.
 if [ -n "${BOSKOS_HOST:-}" ]; then
@@ -106,7 +108,8 @@ ansible-playbook -v \
   --ssh-common-args "-o StrictHostKeyChecking=no" \
   tests/playbooks/test-occm-e2e.yaml \
   -e github_pr=${PR_NUMBER} \
-  -e github_pr_branch=${PR_BRANCH}
+  -e github_pr_branch=${PR_BRANCH} \
+  -e octavia_provider=${OCTAVIA_PROVIDER}
 exit_code=$?
 
 # Fetch devstack logs for debugging purpose
