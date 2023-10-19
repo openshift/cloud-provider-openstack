@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 type testPopListener struct {
@@ -538,6 +539,115 @@ func Test_getListenerProtocol(t *testing.T) {
 	}
 }
 
+func TestLbaasV2_createLoadBalancerStatus(t *testing.T) {
+	type fields struct {
+		LoadBalancer LoadBalancer
+	}
+	type result struct {
+		HostName  string
+		IPAddress string
+	}
+	type args struct {
+		service *corev1.Service
+		svcConf *serviceConfig
+		addr    string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   result
+	}{
+		{
+			name: "it should return hostname from service annotation",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "test",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"loadbalancer.openstack.org/hostname": "testHostName"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: false,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				HostName: "testHostName",
+			},
+		},
+		{
+			name: "it should return fakehostname if proxyProtocol & IngressHostName is enabled without svc annotation",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: true,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: true,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				HostName: "10.10.0.6.ingress-suffix",
+			},
+		},
+		{
+			name: "it should default to ip address if not hostname can be found from svc or proxyProtocol",
+			fields: fields{
+				LoadBalancer: LoadBalancer{
+					opts: LoadBalancerOpts{
+						EnableIngressHostname: false,
+						IngressHostnameSuffix: "ingress-suffix",
+					},
+				},
+			},
+			args: args{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"test": "key"},
+					},
+				},
+				svcConf: &serviceConfig{
+					enableProxyProtocol: false,
+				},
+				addr: "10.10.0.6",
+			},
+			want: result{
+				IPAddress: "10.10.0.6",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := &LbaasV2{
+				LoadBalancer: tt.fields.LoadBalancer,
+			}
+
+			result := lbaas.createLoadBalancerStatus(tt.args.service, tt.args.svcConf, tt.args.addr)
+			assert.Equal(t, tt.want.HostName, result.Ingress[0].Hostname)
+			assert.Equal(t, tt.want.IPAddress, result.Ingress[0].IP)
+
+		})
+	}
+}
+
 func Test_getIntFromServiceAnnotation(t *testing.T) {
 	type args struct {
 		service        *corev1.Service
@@ -972,4 +1082,675 @@ func TestLbaasV2_updateServiceAnnotations(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, expectedAnnotations, serviceAnnotations)
+}
+
+func Test_getStringFromServiceAnnotation(t *testing.T) {
+	type testArgs struct {
+		service        *corev1.Service
+		annotationKey  string
+		defaultSetting string
+	}
+
+	tests := []struct {
+		name     string
+		testArgs testArgs
+		expected string
+	}{
+		{
+			name: "enter empty arguments",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{},
+				},
+				annotationKey:  "",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "enter valid arguments with annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "annotation-Value",
+		},
+		{
+			name: "valid arguments without annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "default-setting",
+		},
+		{
+			name: "enter argument without default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: "annotation-Value",
+		},
+		{
+			name: "enter argument without annotation and default-setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace: "service-namespace",
+						Name:      "service-name",
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "enter argument with a non-existing annotationKey with default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "default-setting",
+		},
+		{
+			name: "enter argument with a non-existing annotationKey without a default setting",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Namespace:   "service-namespace",
+						Name:        "service-name",
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "invalid-annotationKey",
+				defaultSetting: "",
+			},
+			expected: "",
+		},
+		{
+			name: "no name-space and service name but valid annotations",
+			testArgs: testArgs{
+				service: &corev1.Service{
+					ObjectMeta: v1.ObjectMeta{
+						Annotations: map[string]string{"annotationKey": "annotation-Value"},
+					},
+				},
+				annotationKey:  "annotationKey",
+				defaultSetting: "default-setting",
+			},
+			expected: "annotation-Value",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := getStringFromServiceAnnotation(test.testArgs.service, test.testArgs.annotationKey, test.testArgs.defaultSetting)
+
+			assert.Equal(t, test.expected, got)
+		})
+	}
+}
+
+func Test_nodeAddressForLB(t *testing.T) {
+	type testArgs struct {
+		node              *corev1.Node
+		preferredIPFamily corev1.IPFamily
+	}
+
+	tests := []struct {
+		name        string
+		testArgs    testArgs
+		expect      string
+		expectedErr error
+	}{
+		{
+			name: "Empty Address with IPv4 protocol family ",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Empty Address with IPv6 protocol family ",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "valid address with IPv4 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "valid address with IPv6 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple IPv4 address",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "192.168.1.2",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple IPv6 address",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:3333:1111:8a2e:9999:8888",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple mix addresses expecting IPv6 response",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple mix addresses expecting IPv4 response",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2009:0db8:85a3:0003:0001:8a2e:0370:9999",
+							},
+
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:0000:1111:8a2e:9798:7334",
+							},
+
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+
+							{
+								Type:    corev1.NodeExternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "single valid IPv4 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+			},
+			expect:      "192.168.1.1",
+			expectedErr: nil,
+		},
+		{
+			name: "single valid IPv6 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "multiple valid IPv6 address without preferred valid specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.0.1",
+							},
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:1111:2222:8a2e:6869:7334",
+							},
+						},
+					},
+				},
+			},
+			expect:      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+			expectedErr: nil,
+		},
+		{
+			name: "invalid IPv4 address specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "invalid IPv6 address specification",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeInternalIP,
+								Address: "192.168.1.1",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Ignore NodeExternalDNS address with IPv4 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalDNS,
+								Address: "example.com",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv4Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+		{
+			name: "Ignore NodeExternalDNS address with IPv6 protocol family",
+			testArgs: testArgs{
+				node: &corev1.Node{
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{
+							{
+								Type:    corev1.NodeExternalDNS,
+								Address: "example.com",
+							},
+						},
+					},
+				},
+				preferredIPFamily: corev1.IPv6Protocol,
+			},
+			expect:      "",
+			expectedErr: cpoerrors.ErrNoAddressFound,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := nodeAddressForLB(test.testArgs.node, test.testArgs.preferredIPFamily)
+			if test.expectedErr != nil {
+				assert.EqualError(t, err, test.expectedErr.Error())
+			} else {
+				assert.NoError(t, test.expectedErr, err)
+			}
+
+			assert.Equal(t, test.expect, got)
+		})
+	}
+}
+
+func TestLbaasV2_getMemberSubnetID(t *testing.T) {
+	lbaasOpts := LoadBalancerOpts{
+		LBClasses: map[string]*LBClass{
+			"lbclassKey": {
+				MemberSubnetID: "lb-class-member-subnet-id-5678",
+			},
+		},
+		MemberSubnetID: "default-memberSubnetId",
+	}
+
+	tests := []struct {
+		name    string
+		opts    LoadBalancerOpts
+		service *corev1.Service
+		want    string
+		wantErr string
+	}{
+		{
+			name: "get member subnet id from service annotation",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerMemberSubnetID: "member-subnet-id",
+						ServiceAnnotationLoadBalancerClass:          "svc-annotation-loadbalance-class",
+					},
+				},
+			},
+			want:    "member-subnet-id",
+			wantErr: "",
+		},
+		{
+			name: "get member subnet id from config class",
+			opts: lbaasOpts,
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "lbclassKey",
+					},
+				},
+			},
+			want:    "lb-class-member-subnet-id-5678",
+			wantErr: "",
+		},
+		{
+			name:    "get member subnet id from default config",
+			opts:    lbaasOpts,
+			service: &corev1.Service{},
+			want:    "default-memberSubnetId",
+			wantErr: "",
+		},
+		{
+			name: "error when loadbalancer class not found",
+			opts: LoadBalancerOpts{},
+			service: &corev1.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerClass: "invalid-lb-class",
+					},
+				},
+			},
+			want:    "",
+			wantErr: "invalid loadbalancer class \"invalid-lb-class\"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lbaas := LbaasV2{
+				LoadBalancer: LoadBalancer{
+					opts: tt.opts,
+				},
+			}
+
+			got, err := lbaas.getMemberSubnetID(tt.service, &serviceConfig{})
+			if tt.wantErr != "" {
+				assert.EqualError(t, err, tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestBuildBatchUpdateMemberOpts(t *testing.T) {
+
+	// Sample Nodes
+	node1 := &corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "node-1",
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: "192.168.1.1",
+				},
+			},
+		},
+	}
+	node2 := &corev1.Node{
+		ObjectMeta: v1.ObjectMeta{
+			Name: "node-2",
+		},
+		Status: corev1.NodeStatus{
+			Addresses: []corev1.NodeAddress{
+				{
+					Type:    corev1.NodeInternalIP,
+					Address: "192.168.1.2",
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name                    string
+		nodes                   []*corev1.Node
+		port                    corev1.ServicePort
+		svcConf                 *serviceConfig
+		expectedLen             int
+		expectedNewMembersCount int
+	}{
+		{
+			name:  "NodePortequalszero",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 0},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+		{
+			name:  "Valid nodes, canUseHTTPMonitor=false",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       false,
+			},
+			expectedLen:             2,
+			expectedNewMembersCount: 2,
+		},
+		{
+			name:  "Valid nodes, canUseHTTPMonitor=true",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       true,
+			},
+			expectedLen:             2,
+			expectedNewMembersCount: 2,
+		},
+		{
+			name:  "Invalid preferred IP family, fallback to default",
+			nodes: []*corev1.Node{node1, node2},
+			port:  corev1.ServicePort{NodePort: 0},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   "invalid-family",
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+		{
+			name: "ErrNoAddressFound happens and no member is created",
+			nodes: []*corev1.Node{
+				{
+					ObjectMeta: v1.ObjectMeta{Name: "node-1"},
+					Status: corev1.NodeStatus{
+						Addresses: []corev1.NodeAddress{},
+					},
+				},
+			},
+			port: corev1.ServicePort{NodePort: 8080},
+			svcConf: &serviceConfig{
+				preferredIPFamily:   corev1.IPv4Protocol,
+				lbMemberSubnetID:    "subnet-12345-test",
+				healthCheckNodePort: 8081,
+				enableMonitor:       false,
+			},
+			expectedLen:             0,
+			expectedNewMembersCount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			lbaas := &LbaasV2{}
+			members, newMembers, err := lbaas.buildBatchUpdateMemberOpts(tc.port, tc.nodes, tc.svcConf)
+			assert.Len(t, members, tc.expectedLen)
+			assert.NoError(t, err)
+
+			if tc.expectedNewMembersCount == 0 {
+				assert.Empty(t, newMembers)
+			} else {
+				assert.Len(t, newMembers, tc.expectedNewMembersCount)
+			}
+		})
+	}
 }
