@@ -29,6 +29,7 @@ type Config struct {
 	Address             string
 	CertFile            string
 	KeyFile             string
+	EnableHTTP2         bool
 	KeystoneURL         string
 	KeystoneCA          string
 	PolicyFile          string
@@ -84,6 +85,7 @@ func (c *Config) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.Address, "listen", c.Address, "<address>:<port> to listen on")
 	fs.StringVar(&c.CertFile, "tls-cert-file", c.CertFile, "File containing the default x509 Certificate for HTTPS.")
 	fs.StringVar(&c.KeyFile, "tls-private-key-file", c.KeyFile, "File containing the default x509 private key matching --tls-cert-file.")
+	fs.BoolVar(&c.EnableHTTP2, "enable-http2", c.EnableHTTP2, "If HTTP/2 should be enabled for the metrics and webhook servers.")
 	fs.StringVar(&c.KeystoneURL, "keystone-url", c.KeystoneURL, "URL for the OpenStack Keystone API")
 	fs.StringVar(&c.KeystoneCA, "keystone-ca-file", c.KeystoneCA, "File containing the certificate authority for Keystone Service.")
 	fs.StringVar(&c.PolicyFile, "keystone-policy-file", c.PolicyFile, "File containing the policy, if provided, it takes precedence over the policy configmap.")

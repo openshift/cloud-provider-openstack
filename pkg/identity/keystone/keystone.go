@@ -120,7 +120,16 @@ func (k *Auth) Run() {
 	r.HandleFunc("/webhook", k.Handler)
 
 	klog.Infof("Starting webhook server...")
-	klog.Fatal(http.ListenAndServeTLS(k.config.Address, k.config.CertFile, k.config.KeyFile, r))
+	tlsConfig := &tls.Config{}
+	if !k.config.EnableHTTP2 {
+		tlsConfig.NextProtos = []string{"http/1.1"}
+	}
+	server := &http.Server{
+		Addr:      k.config.Address,
+		Handler:   r,
+		TLSConfig: tlsConfig,
+	}
+	klog.Fatal(server.ListenAndServeTLS(k.config.CertFile, k.config.KeyFile))
 }
 
 func (k *Auth) enqueueConfigMap(obj interface{}) {
