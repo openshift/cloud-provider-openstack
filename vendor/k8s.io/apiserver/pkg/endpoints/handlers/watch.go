@@ -19,9 +19,7 @@ package handlers
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
-	"reflect"
 	"time"
 
 	"golang.org/x/net/websocket"
@@ -36,6 +34,9 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/handlers/negotiation"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/storage"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 // nothing will ever be sent down this channel
@@ -63,7 +64,7 @@ func (w *realTimeoutFactory) TimeoutCh() (<-chan time.Time, func() bool) {
 
 // serveWatch will serve a watch response.
 // TODO: the functionality in this method and in WatchServer.Serve is not cleanly decoupled.
-func serveWatch(watcher watch.Interface, scope *RequestScope, mediaTypeOptions negotiation.MediaTypeOptions, req *http.Request, w http.ResponseWriter, timeout time.Duration) {
+func serveWatch(watcher watch.Interface, scope *RequestScope, mediaTypeOptions negotiation.MediaTypeOptions, req *http.Request, w http.ResponseWriter, timeout time.Duration, metricsScope string) {
 	defer watcher.Stop()
 
 	options, err := optionsForTransform(mediaTypeOptions, req)
@@ -92,6 +93,8 @@ func serveWatch(watcher watch.Interface, scope *RequestScope, mediaTypeOptions n
 		mediaType += ";stream=watch"
 	}
 
+	ctx := req.Context()
+
 	// locate the appropriate embedded encoder based on the transform
 	var embeddedEncoder runtime.Encoder
 	contentKind, contentSerializer, transform := targetEncodingForTransform(scope, mediaTypeOptions, req)
@@ -106,12 +109,40 @@ func serveWatch(watcher watch.Interface, scope *RequestScope, mediaTypeOptions n
 		embeddedEncoder = scope.Serializer.EncoderForVersion(serializer.Serializer, contentKind.GroupVersion())
 	}
 
+	var memoryAllocator runtime.MemoryAllocator
+
+	if encoderWithAllocator, supportsAllocator := embeddedEncoder.(runtime.EncoderWithAllocator); supportsAllocator {
+		// don't put the allocator inside the embeddedEncodeFn as that would allocate memory on every call.
+		// instead, we allocate the buffer for the entire watch session and release it when we close the connection.
+		memoryAllocator = runtime.AllocatorPool.Get().(*runtime.Allocator)
+		defer runtime.AllocatorPool.Put(memoryAllocator)
+		embeddedEncoder = runtime.NewEncoderWithAllocator(encoderWithAllocator, memoryAllocator)
+	}
+	var tableOptions *metav1.TableOptions
+	if options != nil {
+		if passedOptions, ok := options.(*metav1.TableOptions); ok {
+			tableOptions = passedOptions
+		} else {
+			scope.err(fmt.Errorf("unexpected options type: %T", options), w, req)
+			return
+		}
+	}
+	embeddedEncoder = newWatchEmbeddedEncoder(ctx, embeddedEncoder, mediaTypeOptions.Convert, tableOptions, scope)
+
+	if encoderWithAllocator, supportsAllocator := encoder.(runtime.EncoderWithAllocator); supportsAllocator {
+		if memoryAllocator == nil {
+			// don't put the allocator inside the embeddedEncodeFn as that would allocate memory on every call.
+			// instead, we allocate the buffer for the entire watch session and release it when we close the connection.
+			memoryAllocator = runtime.AllocatorPool.Get().(*runtime.Allocator)
+			defer runtime.AllocatorPool.Put(memoryAllocator)
+		}
+		encoder = runtime.NewEncoderWithAllocator(encoderWithAllocator, memoryAllocator)
+	}
+
 	var serverShuttingDownCh <-chan struct{}
 	if signals := apirequest.ServerShutdownSignalFrom(req.Context()); signals != nil {
 		serverShuttingDownCh = signals.ShuttingDown()
 	}
-
-	ctx := req.Context()
 
 	server := &WatchServer{
 		Watching: watcher,
@@ -123,23 +154,10 @@ func serveWatch(watcher watch.Interface, scope *RequestScope, mediaTypeOptions n
 		Encoder:         encoder,
 		EmbeddedEncoder: embeddedEncoder,
 
-		Fixup: func(obj runtime.Object) runtime.Object {
-			result, err := transformObject(ctx, obj, options, mediaTypeOptions, scope, req)
-			if err != nil {
-				utilruntime.HandleError(fmt.Errorf("failed to transform object %v: %v", reflect.TypeOf(obj), err))
-				return obj
-			}
-			// When we are transformed to a table, use the table options as the state for whether we
-			// should print headers - on watch, we only want to print table headers on the first object
-			// and omit them on subsequent events.
-			if tableOptions, ok := options.(*metav1.TableOptions); ok {
-				tableOptions.NoHeaders = true
-			}
-			return result
-		},
-
 		TimeoutFactory:       &realTimeoutFactory{timeout},
 		ServerShuttingDownCh: serverShuttingDownCh,
+
+		metricsScope: metricsScope,
 	}
 
 	server.ServeHTTP(w, req)
@@ -160,11 +178,11 @@ type WatchServer struct {
 	Encoder runtime.Encoder
 	// used to encode the nested object in the watch stream
 	EmbeddedEncoder runtime.Encoder
-	// used to correct the object before we send it to the serializer
-	Fixup func(runtime.Object) runtime.Object
 
 	TimeoutFactory       TimeoutFactory
 	ServerShuttingDownCh <-chan struct{}
+
+	metricsScope string
 }
 
 // ServeHTTP serves a series of encoded events via HTTP with Transfer-Encoding: chunked
@@ -196,15 +214,7 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var e streaming.Encoder
-	var memoryAllocator runtime.MemoryAllocator
-
-	if encoder, supportsAllocator := s.Encoder.(runtime.EncoderWithAllocator); supportsAllocator {
-		memoryAllocator = runtime.AllocatorPool.Get().(*runtime.Allocator)
-		defer runtime.AllocatorPool.Put(memoryAllocator)
-		e = streaming.NewEncoderWithAllocator(framer, encoder, memoryAllocator)
-	} else {
-		e = streaming.NewEncoder(framer, s.Encoder)
-	}
+	e = streaming.NewEncoder(framer, s.Encoder)
 
 	// ensure the connection times out
 	timeoutCh, cleanup := s.TimeoutFactory.TimeoutCh()
@@ -222,19 +232,6 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	buf := runtime.NewSpliceBuffer()
 	ch := s.Watching.ResultChan()
 	done := req.Context().Done()
-
-	embeddedEncodeFn := s.EmbeddedEncoder.Encode
-	if encoder, supportsAllocator := s.EmbeddedEncoder.(runtime.EncoderWithAllocator); supportsAllocator {
-		if memoryAllocator == nil {
-			// don't put the allocator inside the embeddedEncodeFn as that would allocate memory on every call.
-			// instead, we allocate the buffer for the entire watch session and release it when we close the connection.
-			memoryAllocator = runtime.AllocatorPool.Get().(*runtime.Allocator)
-			defer runtime.AllocatorPool.Put(memoryAllocator)
-		}
-		embeddedEncodeFn = func(obj runtime.Object, w io.Writer) error {
-			return encoder.EncodeWithAllocator(obj, w, memoryAllocator)
-		}
-	}
 
 	for {
 		select {
@@ -257,11 +254,11 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 			metrics.WatchEvents.WithContext(req.Context()).WithLabelValues(kind.Group, kind.Version, kind.Kind).Inc()
+			isWatchListLatencyRecordingRequired := shouldRecordWatchListLatency(event)
 
-			obj := s.Fixup(event.Object)
-			if err := embeddedEncodeFn(obj, buf); err != nil {
+			if err := s.EmbeddedEncoder.Encode(event.Object, buf); err != nil {
 				// unexpected error
-				utilruntime.HandleError(fmt.Errorf("unable to encode watch object %T: %v", obj, err))
+				utilruntime.HandleError(fmt.Errorf("unable to encode watch object %T: %v", event.Object, err))
 				return
 			}
 
@@ -290,6 +287,9 @@ func (s *WatchServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			}
 			if len(ch) == 0 {
 				flusher.Flush()
+			}
+			if isWatchListLatencyRecordingRequired {
+				metrics.RecordWatchListLatency(req.Context(), s.Scope.Resource, s.metricsScope)
 			}
 
 			buf.Reset()
@@ -326,10 +326,10 @@ func (s *WatchServer) HandleWS(ws *websocket.Conn) {
 				// End of results.
 				return
 			}
-			obj := s.Fixup(event.Object)
-			if err := s.EmbeddedEncoder.Encode(obj, buf); err != nil {
+
+			if err := s.EmbeddedEncoder.Encode(event.Object, buf); err != nil {
 				// unexpected error
-				utilruntime.HandleError(fmt.Errorf("unable to encode watch object %T: %v", obj, err))
+				utilruntime.HandleError(fmt.Errorf("unable to encode watch object %T: %v", event.Object, err))
 				return
 			}
 
@@ -370,4 +370,20 @@ func (s *WatchServer) HandleWS(ws *websocket.Conn) {
 			streamBuf.Reset()
 		}
 	}
+}
+
+func shouldRecordWatchListLatency(event watch.Event) bool {
+	if event.Type != watch.Bookmark || !utilfeature.DefaultFeatureGate.Enabled(features.WatchList) {
+		return false
+	}
+	// as of today the initial-events-end annotation is added only to a single event
+	// by the watch cache and only when certain conditions are met
+	//
+	// for more please read https://github.com/kubernetes/enhancements/tree/master/keps/sig-api-machinery/3157-watch-list
+	hasAnnotation, err := storage.HasInitialEventsEndBookmarkAnnotation(event.Object)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("unable to determine if the obj has the required annotation for measuring watchlist latency, obj %T: %v", event.Object, err))
+		return false
+	}
+	return hasAnnotation
 }

@@ -764,7 +764,7 @@ func (t StorageClassTest) TestDynamicProvisioning(ctx context.Context) *v1.Persi
 	}()
 
 	// ensure that the claim refers to the provisioned StorageClass
-	framework.ExpectEqual(*claim.Spec.StorageClassName, class.Name)
+	gomega.Expect(*claim.Spec.StorageClassName).To(gomega.Equal(class.Name))
 
 	// if late binding is configured, create and delete a pod to provision the volume
 	if *class.VolumeBindingMode == storagev1.VolumeBindingWaitForFirstConsumer {
@@ -856,17 +856,17 @@ func (t StorageClassTest) checkProvisioning(ctx context.Context, client clientse
 		}
 	}
 
-	framework.ExpectEqual(pv.Spec.ClaimRef.Name, claim.ObjectMeta.Name)
-	framework.ExpectEqual(pv.Spec.ClaimRef.Namespace, claim.ObjectMeta.Namespace)
+	gomega.Expect(pv.Spec.ClaimRef.Name).To(gomega.Equal(claim.ObjectMeta.Name))
+	gomega.Expect(pv.Spec.ClaimRef.Namespace).To(gomega.Equal(claim.ObjectMeta.Namespace))
 	if class == nil {
-		framework.ExpectEqual(pv.Spec.PersistentVolumeReclaimPolicy, v1.PersistentVolumeReclaimDelete)
+		gomega.Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(gomega.Equal(v1.PersistentVolumeReclaimDelete))
 	} else {
-		framework.ExpectEqual(pv.Spec.PersistentVolumeReclaimPolicy, *class.ReclaimPolicy)
-		framework.ExpectEqual(pv.Spec.MountOptions, class.MountOptions)
+		gomega.Expect(pv.Spec.PersistentVolumeReclaimPolicy).To(gomega.Equal(*class.ReclaimPolicy))
+		gomega.Expect(pv.Spec.MountOptions).To(gomega.Equal(class.MountOptions))
 	}
 	if claim.Spec.VolumeMode != nil {
 		gomega.Expect(pv.Spec.VolumeMode).NotTo(gomega.BeNil())
-		framework.ExpectEqual(*pv.Spec.VolumeMode, *claim.Spec.VolumeMode)
+		gomega.Expect(*pv.Spec.VolumeMode).To(gomega.Equal(*claim.Spec.VolumeMode))
 	}
 	return pv
 }
@@ -938,7 +938,7 @@ func PVWriteReadSingleNodeCheck(ctx context.Context, client clientset.Interface,
 //
 // This is a common test that can be called from a StorageClassTest.PvCheck.
 func PVMultiNodeCheck(ctx context.Context, client clientset.Interface, timeouts *framework.TimeoutContext, claim *v1.PersistentVolumeClaim, node e2epod.NodeSelection) {
-	framework.ExpectEqual(node.Name, "", "this test only works when not locked onto a single node")
+	gomega.Expect(node.Name).To(gomega.BeZero(), "this test only works when not locked onto a single node")
 
 	var pod *v1.Pod
 	defer func() {
@@ -965,7 +965,7 @@ func PVMultiNodeCheck(ctx context.Context, client clientset.Interface, timeouts 
 	framework.ExpectNoError(e2epod.WaitForPodSuccessInNamespaceTimeout(ctx, client, pod.Name, pod.Namespace, timeouts.PodStartSlow))
 	runningPod, err = client.CoreV1().Pods(pod.Namespace).Get(ctx, pod.Name, metav1.GetOptions{})
 	framework.ExpectNoError(err, "get pod")
-	framework.ExpectNotEqual(runningPod.Spec.NodeName, actualNodeName, "second pod should have run on a different node")
+	gomega.Expect(runningPod.Spec.NodeName).ToNot(gomega.Equal(actualNodeName), "second pod should have run on a different node")
 	StopPod(ctx, client, pod)
 	pod = nil
 }
@@ -973,7 +973,7 @@ func PVMultiNodeCheck(ctx context.Context, client clientset.Interface, timeouts 
 // TestBindingWaitForFirstConsumerMultiPVC tests the binding with WaitForFirstConsumer mode
 func (t StorageClassTest) TestBindingWaitForFirstConsumerMultiPVC(ctx context.Context, claims []*v1.PersistentVolumeClaim, nodeSelector map[string]string, expectUnschedulable bool) ([]*v1.PersistentVolume, *v1.Node) {
 	var err error
-	framework.ExpectNotEqual(len(claims), 0)
+	gomega.Expect(claims).ToNot(gomega.BeEmpty())
 	namespace := claims[0].Namespace
 
 	ginkgo.By("creating claims")
@@ -1043,7 +1043,7 @@ func (t StorageClassTest) TestBindingWaitForFirstConsumerMultiPVC(ctx context.Co
 		framework.ExpectNoError(err)
 		pvs = append(pvs, pv)
 	}
-	framework.ExpectEqual(len(pvs), len(createdClaims))
+	gomega.Expect(pvs).To(gomega.HaveLen(len(createdClaims)))
 	return pvs, node
 }
 
@@ -1195,7 +1195,7 @@ func verifyPVCsPending(ctx context.Context, client clientset.Interface, pvcs []*
 		// Get new copy of the claim
 		claim, err := client.CoreV1().PersistentVolumeClaims(claim.Namespace).Get(ctx, claim.Name, metav1.GetOptions{})
 		framework.ExpectNoError(err)
-		framework.ExpectEqual(claim.Status.Phase, v1.ClaimPending)
+		gomega.Expect(claim.Status.Phase).To(gomega.Equal(v1.ClaimPending))
 	}
 }
 
