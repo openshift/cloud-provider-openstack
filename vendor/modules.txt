@@ -186,6 +186,7 @@ github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/external
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/extraroutes
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/floatingips
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers
+github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/portsecurity
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/groups
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/security/rules
 github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/trunk_details
