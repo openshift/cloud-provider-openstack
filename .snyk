@@ -1,0 +1,13 @@
+# References:
+# https://docs.snyk.io/scan-applications/snyk-code/using-snyk-code-from-the-cli/excluding-directories-and-files-from-the-snyk-code-cli-test
+# https://docs.snyk.io/snyk-cli/commands/ignore
+exclude:
+  global:
+    - "**/vendor/**"
+    - "hack/**"
+    - "tests/**"
+    - "**/*_test.go"
+    - "charts/**"
+    - "examples/**"
+    - "manifests/**"
+    - "unpacked_remote_sources/**"
