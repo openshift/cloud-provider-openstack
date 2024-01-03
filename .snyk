@@ -7,7 +7,3 @@ exclude:
     - "hack/**"
     - "tests/**"
     - "**/*_test.go"
-    - "charts/**"
-    - "examples/**"
-    - "manifests/**"
-    - "unpacked_remote_sources/**"
