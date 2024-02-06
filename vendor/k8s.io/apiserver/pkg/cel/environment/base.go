@@ -22,7 +22,9 @@ import (
 	"sync"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/checker"
 	"github.com/google/cel-go/ext"
+	"github.com/google/cel-go/interpreter"
 	"golang.org/x/sync/singleflight"
 
 	"k8s.io/apimachinery/pkg/util/version"
@@ -60,10 +62,18 @@ var baseOpts = []VersionedOptions{
 			library.URLs(),
 			library.Regex(),
 			library.Lists(),
+
+			// cel-go v0.17.7 change the cost of has() from 0 to 1, but also provided the CostEstimatorOptions option to preserve the old behavior, so we enabled it at the same time we bumped our cel version to v0.17.7.
+			// Since it is a regression fix, we apply it uniformly to all code use v0.17.7.
+			cel.CostEstimatorOptions(checker.PresenceTestHasCost(false)),
 		},
 		ProgramOptions: []cel.ProgramOption{
 			cel.EvalOptions(cel.OptOptimize, cel.OptTrackCost),
 			cel.CostLimit(celconfig.PerCallLimit),
+
+			// cel-go v0.17.7 change the cost of has() from 0 to 1, but also provided the CostEstimatorOptions option to preserve the old behavior, so we enabled it at the same time we bumped our cel version to v0.17.7.
+			// Since it is a regression fix, we apply it uniformly to all code use v0.17.7.
+			cel.CostTrackerOptions(interpreter.PresenceTestHasCost(false)),
 		},
 	},
 	{
@@ -80,7 +90,18 @@ var baseOpts = []VersionedOptions{
 			library.Quantity(),
 		},
 	},
-
+	// add the new validator in 1.29
+	{
+		IntroducedVersion: version.MajorMinor(1, 29),
+		EnvOptions: []cel.EnvOption{
+			cel.ASTValidators(
+				cel.ValidateDurationLiterals(),
+				cel.ValidateTimestampLiterals(),
+				cel.ValidateRegexLiterals(),
+				cel.ValidateHomogeneousAggregateLiterals(),
+			),
+		},
+	},
 	// String library
 	{
 		IntroducedVersion: version.MajorMinor(1, 0),
@@ -93,6 +114,13 @@ var baseOpts = []VersionedOptions{
 		IntroducedVersion: version.MajorMinor(1, 29),
 		EnvOptions: []cel.EnvOption{
 			ext.Strings(ext.StringsVersion(2)),
+		},
+	},
+	// Set library
+	{
+		IntroducedVersion: version.MajorMinor(1, 29),
+		EnvOptions: []cel.EnvOption{
+			ext.Sets(),
 		},
 	},
 }
