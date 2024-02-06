@@ -177,7 +177,8 @@ func WaitActiveAndGetLoadBalancer(client *gophercloud.ServiceClient, loadbalance
 		var err error
 		loadbalancer, err = loadbalancers.Get(client, loadbalancerID).Extract()
 		if mc.ObserveRequest(err) != nil {
-			return false, err
+			klog.Warningf("Failed to fetch loadbalancer status from OpenStack (lbID %q): %s", loadbalancerID, err)
+			return false, nil
 		}
 		if loadbalancer.ProvisioningStatus == activeStatus {
 			klog.InfoS("Load balancer ACTIVE", "lbID", loadbalancerID)
@@ -504,7 +505,7 @@ func GetPoolByListener(client *gophercloud.ServiceClient, lbID, listenerID strin
 	return &listenerPools[0], nil
 }
 
-// GetPools retrives the pools belong to the loadbalancer.
+// GetPools retrieves the pools belong to the loadbalancer.
 func GetPools(client *gophercloud.ServiceClient, lbID string) ([]pools.Pool, error) {
 	var lbPools []pools.Pool
 

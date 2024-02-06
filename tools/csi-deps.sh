@@ -49,7 +49,7 @@ copy_deps() {
     fi
 }
 
-# Commmon lib /lib64/ld-linux-*.so.2
+# Common lib /lib64/ld-linux-*.so.2
 # needs for all utils
 ARCH=$(uname -m)
 if [ $ARCH = "aarch64" ] || [ $ARCH = "armv7l" ]; then
@@ -61,6 +61,10 @@ elif [ $ARCH = "ppc64le" ]; then
 else
   mkdir -p ${DEST}/lib64 && cp -Lv /lib64/ld-linux-*.so.* ${DEST}/lib64/
 fi
+
+# To collect dmesg logs
+copy_deps /usr/bin/dmesg || true
+copy_deps /bin/dmesg || true
 
 # This utils are using by
 # go mod k8s.io/mount-utils

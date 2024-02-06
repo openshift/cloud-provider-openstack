@@ -252,7 +252,7 @@ it as a service. There are several things we need to notice in the
 deployment manifest:
 
 - We are using image
-  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.28.0`
+  `registry.k8s.io/provider-os/k8s-keystone-auth:v1.29.0`
 - We use `k8s-auth-policy` configmap created above.
 - The pod uses service account `keystone-auth` created above.
 - We use `keystone-auth-certs` secret created above to inject the
@@ -679,7 +679,7 @@ Next you have several ways to specify additional auth parameters:
 
 2. Specify auth parameters in the `~/.kube/config` file. For more information
    read
-   [client keystone auth configuaration doc](./using-client-keystone-auth.md)
+   [client keystone auth configuration doc](./using-client-keystone-auth.md)
    and
    [credential plugins documentation](https://kubernetes.io/docs/admin/authentication/#client-go-credential-plugins)
 3. Use the interactive mode. If auth parameters are not specified initially,

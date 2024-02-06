@@ -5,7 +5,6 @@
 
   vars:
     user: stack
-    github_pr: 123
     global_env: {}
     devstack_workdir: /home/{{ user }}/devstack
 
@@ -19,7 +18,6 @@
         - manila
     - role: install-k3s
       worker_node_count: 0
-      k3s_release: v1.26.1+k3s1
     - role: install-docker
     - role: install-docker-registry
       cert_hosts: ' ["{{ ansible_default_ipv4.address }}"]'

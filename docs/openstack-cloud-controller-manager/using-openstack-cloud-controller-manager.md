@@ -59,7 +59,7 @@ The following guide has been tested to install Kubernetes v1.17 on Ubuntu 18.04.
     kubectl create secret -n kube-system generic cloud-config --from-file=cloud.conf
     ```
 
-- Create RBAC resources and openstack-cloud-controller-manager deamonset.
+- Create RBAC resources and openstack-cloud-controller-manager daemonset.
 
     ```shell
     kubectl apply -f https://raw.githubusercontent.com/kubernetes/cloud-provider-openstack/master/manifests/controller-manager/cloud-controller-manager-roles.yaml
@@ -201,10 +201,17 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   Optional. Tags for the external network subnet used to create floating IP for the load balancer VIP. Can be overridden by the Service annotation `loadbalancer.openstack.org/floating-subnet-tags`. If multiple subnets match the first one with still available IPs is used.
 
 * `lb-method`
-  The load balancing algorithm used to create the load balancer pool. The value can be `ROUND_ROBIN`, `LEAST_CONNECTIONS`, or `SOURCE_IP`. Default: `ROUND_ROBIN`
+  The load balancing algorithm used to create the load balancer pool.
+
+  If `lb-provider` is set to "amphora" or "octavia" the value can be one of:
+    * `ROUND_ROBIN` (default)
+    * `LEAST_CONNECTIONS`
+    * `SOURCE_IP`
+    
+  If `lb-provider` is set to "ovn" the value must be set to `SOURCE_IP_PORT`.
 
 * `lb-provider`
-  Optional. Used to specify the provider of the load balancer, e.g. "amphora" or "octavia". Only "amphora" or "octavia" provider are officially tested, other provider will cause a warning log.
+  Optional. Used to specify the provider of the load balancer, e.g. "amphora" (default), "octavia" (deprecated alias for "amphora"), or "ovn". Only the "amphora", "octavia", and "ovn" providers are officially tested, other providers will cause a warning log.
 
 * `lb-version`
   Optional. If specified, only "v2" is supported.
@@ -223,6 +230,8 @@ Although the openstack-cloud-controller-manager was initially implemented with N
 
 * `create-monitor`
   Indicates whether or not to create a health monitor for the service load balancer. A health monitor required for services that declare `externalTrafficPolicy: Local`. Default: false
+
+  NOTE: Health monitors for the `ovn` provider are only supported on OpenStack Wallaby and later.
 
 * `monitor-delay`
   The time, in seconds, between sending probes to members of the load balancer. Default: 5
@@ -272,9 +281,9 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   This option is currently a workaround for the issue https://github.com/kubernetes/ingress-nginx/issues/3996, should be removed or refactored after the Kubernetes [KEP-1860](https://github.com/kubernetes/enhancements/tree/master/keps/sig-network/1860-kube-proxy-IP-node-binding) is implemented.
 
 * `default-tls-container-ref`
-  Reference to a tls container. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type TERMINATED_HTTPS for a TLS Terminated loadbalancer.
+  Reference to a tls container or secret. This option works with Octavia, when this option is set then the cloud provider will create an Octavia Listener of type TERMINATED_HTTPS for a TLS Terminated loadbalancer.
 
-  Format for tls container ref: `https://{keymanager_host}/v1/containers/{uuid}`
+  Accepted format for tls container ref are `https://{keymanager_host}/v1/containers/{uuid}` and `https://{keymanager_host}/v1/secrets/{uuid}`.
   Check `container-store` parameter if you want to disable validation.
 
 * `container-store`
@@ -294,8 +303,6 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   increased load on the OpenStack API. Default: false 
 
 NOTE:
-
-* When using `ovn` provider service has limited scope - `create_monitor` is not supported and only supported `lb-method` is `SOURCE_IP`.
 
 * environment variable `OCCM_WAIT_LB_ACTIVE_STEPS` is used to provide steps of waiting loadbalancer to be ready. Current default wait steps is 23 and setup the environment variable overrides default value. Refer to [Backoff.Steps](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/wait#Backoff) for further information.
 

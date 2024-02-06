@@ -3,22 +3,21 @@
   shell:
     executable: /bin/bash
     cmd: |
-      rm -rf $GOPATH/src/k8s.io/cloud-provider-openstack
-      mkdir -p $GOPATH/src/k8s.io; cd $_
-      git clone https://github.com/kubernetes/cloud-provider-openstack
-      cd cloud-provider-openstack
-      git fetch origin +refs/pull/{{ github_pr }}/merge
-      git checkout FETCH_HEAD; git checkout -b PR{{ github_pr }}
+      if [ ! -d $GOPATH/src/k8s.io/cloud-provider-openstack ]; then
+        mkdir -p $GOPATH/src/k8s.io; cd $_
+        git clone https://github.com/kubernetes/cloud-provider-openstack
+      fi
 
 - name: Build and upload cinder-csi-plugin image
   shell:
     executable: /bin/bash
     cmd: |
       cd $GOPATH/src/k8s.io/cloud-provider-openstack
+      VERSION="v0.0.99" # Fake version, but in proper format.
 
       make push-multiarch-image-cinder-csi-plugin \
         ARCHS='amd64' \
-        VERSION=v0.0.{{ github_pr }} \
+        VERSION=${VERSION} \
         REGISTRY={{ image_registry_host }}
 
 - name: Prepare cloud config
@@ -59,9 +58,10 @@
 
       sed -i "/cloud\.conf/c\  cloud.conf: $b64data" manifests/cinder-csi-plugin/csi-secret-cinderplugin.yaml
 
+      VERSION="v0.0.99" # Fake version, but in proper format.
       # replace image with built image
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
-      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:v1.28.0#{{ remote_registry_host }}/cinder-csi-plugin:v0.0.{{ github_pr }}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:[^'\"]\+#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
+      sed -i "s#registry.k8s.io/provider-os/cinder-csi-plugin:[^'\"]\+#{{ remote_registry_host }}/cinder-csi-plugin:${VERSION}#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
 
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-controllerplugin.yaml
       sed -i "s#--v=1#--v=5#" manifests/cinder-csi-plugin/cinder-csi-nodeplugin.yaml
@@ -190,6 +190,15 @@
 
       kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
       kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
+      kubectl -n kube-system exec $(kubectl -n kube-system get pod -l app=csi-cinder-nodeplugin -o name) -c cinder-csi-plugin -- dmesg -T > /var/log/csi-pod/dmesg.log
+  ignore_errors: true
+
+- name: Show dmesg logs
+  become: true
+  shell:
+    executable: /bin/bash
+    cmd: |
+      sudo dmesg -T > /var/log/csi-pod/dmesg_local.log
   ignore_errors: true
 
 - fail: msg="The execution has failed because of errors."
