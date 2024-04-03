@@ -1911,16 +1911,17 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBFloatingIPSkipped, msg, serviceName, addr)
 		klog.Infof(msg, serviceName, addr)
 	} else {
-		addr, err = lbaas.ensureFloatingIP(ctx, clusterName, service, loadbalancer, svcConf, isLBOwner)
+		addr, err = lbaas.ensureFloatingIP(clusterName, service, loadbalancer, svcConf, isLBOwner)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	// save address into the annotation
-	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
-
-	// Ensure the LB name tag plus any tags from the Service annotation in a single update.
+	// Add annotation to Service and add LB name to load balancer tags.
+	annotationUpdate := map[string]string{
+		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
+		ServiceAnnotationLoadBalancerAddress: addr,
+	}
+	lbaas.updateServiceAnnotations(service, annotationUpdate)
 	if svcConf.supportLBTags {
 		lbTags := withLBNameTag(lbName, svcConf.lbTags)
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
