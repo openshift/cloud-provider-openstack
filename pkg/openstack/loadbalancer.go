@@ -1722,10 +1722,10 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 }
 
 func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, value string) {
-	if service.Annotations == nil {
-		service.Annotations = map[string]string{}
+	if service.ObjectMeta.Annotations == nil {
+		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	service.Annotations[key] = value
+	service.ObjectMeta.Annotations[key] = value
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -1793,9 +1793,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			msg := "Loadbalancer %s has a name of %s with incorrect cluster-name component. Renaming it to %s."
 			klog.Infof(msg, loadbalancer.ID, loadbalancer.Name, lbName)
 			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
-			loadbalancer, err = renameLoadBalancer(ctx, lbaas.lb, loadbalancer, lbName, clusterName)
+			loadbalancer, err = renameLoadBalancer(lbaas.lb, loadbalancer, lbName, clusterName)
 			if err != nil {
-				return nil, fmt.Errorf("failed to update load balancer %s with an updated name: %w", svcConf.lbID, err)
+				return nil, fmt.Errorf("failed to update load balancer %s with an updated name", svcConf.lbID)
 			}
 		}
 
@@ -1916,12 +1916,11 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			return nil, err
 		}
 	}
-	// Add annotation to Service and add LB name to load balancer tags.
-	annotationUpdate := map[string]string{
-		ServiceAnnotationLoadBalancerID:      loadbalancer.ID,
-		ServiceAnnotationLoadBalancerAddress: addr,
-	}
-	lbaas.updateServiceAnnotations(service, annotationUpdate)
+
+	// save address into the annotation
+	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
+
+	// add LB name to load balancer tags.
 	if svcConf.supportLBTags {
 		lbTags := withLBNameTag(lbName, svcConf.lbTags)
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
