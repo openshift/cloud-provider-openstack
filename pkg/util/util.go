@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -67,6 +66,31 @@ func StringListEqual(list1, list2 []string) bool {
 	}
 
 	return s1.Equal(s2)
+}
+
+// StringToMap converts a string of comma-separated key-values into a map
+func StringToMap(str string) map[string]string {
+	// break up a "key1=val,key2=val2,key3=,key4" string into a list
+	values := strings.Split(strings.TrimSpace(str), ",")
+	keyValues := make(map[string]string, len(values))
+
+	for _, kv := range values {
+		kv := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+
+		k := kv[0]
+		if len(kv) == 1 {
+			if k != "" {
+				// process "key=" or "key"
+				keyValues[k] = ""
+			}
+			continue
+		}
+
+		// process "key=val" or "key=val=foo"
+		keyValues[k] = kv[1]
+	}
+
+	return keyValues
 }
 
 // StringToMap converts a string of comma-separated key-values into a map
