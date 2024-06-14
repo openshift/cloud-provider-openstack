@@ -54,6 +54,7 @@ var (
 	probeFilePath   = probeVolumePath + "/probe-file"
 	fileName        = "test-file"
 	retryDuration   = 20
+	mountImage      = imageutils.GetE2EImage(imageutils.Agnhost)
 )
 
 type subPathTestSuite struct {
@@ -449,7 +450,7 @@ func (s *subPathTestSuite) DefineTests(driver storageframework.TestDriver, patte
 
 		// Change volume container to busybox so we can exec later
 		l.pod.Spec.Containers[1].Image = e2epod.GetDefaultTestImage()
-		l.pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd(e2epod.InfiniteSleepCommand)
+		l.pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd("sleep 100000")
 		l.pod.Spec.Containers[1].Args = nil
 
 		ginkgo.By(fmt.Sprintf("Creating pod %s", l.pod.Name))
@@ -577,8 +578,8 @@ func SubpathTestPod(f *framework.Framework, subpath, volumeType string, source *
 }
 
 func containerIsUnused(container *v1.Container) bool {
-	// agnhost image with nil command and nil Args or with just "mounttest" as Args does nothing. Leave everything else
-	return container.Image == imageutils.GetE2EImage(imageutils.Agnhost) && container.Command == nil &&
+	// mountImage with nil command and nil Args or with just "mounttest" as Args does nothing. Leave everything else
+	return container.Image == mountImage && container.Command == nil &&
 		(container.Args == nil || (len(container.Args) == 1 && container.Args[0] == "mounttest"))
 }
 
@@ -793,10 +794,10 @@ func testPodContainerRestartWithHooks(ctx context.Context, f *framework.Framewor
 	pod.Spec.RestartPolicy = v1.RestartPolicyOnFailure
 
 	pod.Spec.Containers[0].Image = e2epod.GetDefaultTestImage()
-	pod.Spec.Containers[0].Command = e2epod.GenerateScriptCmd(e2epod.InfiniteSleepCommand)
+	pod.Spec.Containers[0].Command = e2epod.GenerateScriptCmd("sleep 100000")
 	pod.Spec.Containers[0].Args = nil
 	pod.Spec.Containers[1].Image = e2epod.GetDefaultTestImage()
-	pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd(e2epod.InfiniteSleepCommand)
+	pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd("sleep 100000")
 	pod.Spec.Containers[1].Args = nil
 	hooks.AddLivenessProbe(pod, probeFilePath)
 
@@ -971,10 +972,10 @@ func testSubpathReconstruction(ctx context.Context, f *framework.Framework, host
 
 	// Change to busybox
 	pod.Spec.Containers[0].Image = e2epod.GetDefaultTestImage()
-	pod.Spec.Containers[0].Command = e2epod.GenerateScriptCmd(e2epod.InfiniteSleepCommand)
+	pod.Spec.Containers[0].Command = e2epod.GenerateScriptCmd("sleep 100000")
 	pod.Spec.Containers[0].Args = nil
 	pod.Spec.Containers[1].Image = e2epod.GetDefaultTestImage()
-	pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd(e2epod.InfiniteSleepCommand)
+	pod.Spec.Containers[1].Command = e2epod.GenerateScriptCmd("sleep 100000")
 	pod.Spec.Containers[1].Args = nil
 	// If grace period is too short, then there is not enough time for the volume
 	// manager to cleanup the volumes
