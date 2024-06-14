@@ -98,6 +98,19 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
   The default is empty string, which means the server is disabled.
   </dd>
 
+  <dt>--provide-controller-service &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver does provide the controller service.
+
+  The default is to provide the controller service.
+  </dd>
+
+  <dt>--provide-node-service &lt;enabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver does provide the node service.
+
+  The default is to provide the node service.
+  </dd>
 </dl>
 
 ## Driver Config
@@ -114,7 +127,7 @@ Implementation of `cinder-csi-plugin` relies on following OpenStack services.
 For Driver configuration, parameters must be passed via configuration file specified in `$CLOUD_CONFIG` environment variable.
 The following sections are supported in configuration file.
 
-### Global 
+### Global
 For Cinder CSI Plugin to authenticate with OpenStack Keystone, required parameters needs to be passed in `[Global]` section of the file. For all supported parameters, please refer [Global](../openstack-cloud-controller-manager/using-openstack-cloud-controller-manager.md#global) section.
 
 ### Block Storage
@@ -196,7 +209,7 @@ cinder.csi.openstack.org   true             true             false             <
               mountPath: /etc/cacert
               readOnly: true
 
-     volumes:   
+     volumes:
         ....
         - name: cacert
           hostPath:
@@ -254,6 +267,9 @@ helm install --namespace kube-system --name cinder-csi ./charts/cinder-csi-plugi
 | StorageClass `parameters`  | `availability`          | `nova`          | String. Volume Availability Zone |
 | StorageClass `parameters`  | `type`                  | Empty String    | String. Name/ID of Volume type. Corresponding volume type should exist in cinder     |
 | VolumeSnapshotClass `parameters` | `force-create`    | `false`         | Enable to support creating snapshot for a volume in in-use status |
+| VolumeSnapshotClass `parameters` | `type`            | Empty String    | `snapshot` creates a VolumeSnapshot object linked to a Cinder volume snapshot. `backup` creates a VolumeSnapshot object linked to a cinder volume backup. Defaults to `snapshot` if not defined |
+| VolumeSnapshotClass `parameters` | `backup-max-duration-seconds-per-gb`  | `20`    | Defines the amount of time to wait for a backup to complete in seconds per GB of volume size |
+| VolumeSnapshotClass `parameters`  | `availability`          | Same as volume | String. Backup Availability Zone |
 | Inline Volume `volumeAttributes`   | `capacity`              | `1Gi`       | volume size for creating inline volumes| 
 | Inline Volume `VolumeAttributes`   | `type`              | Empty String  | Name/ID of Volume type. Corresponding volume type should exist in cinder |
 
@@ -266,14 +282,14 @@ To build the plugin, run
 ```
 $ export ARCH=amd64 # Defaults to amd64
 $ make build-cmd-cinder-csi-plugin
-``` 
+```
 
 To build cinder-csi-plugin image
 
 ```
 $ export ARCH=amd64 # Defaults to amd64
 $ make build-local-image-cinder-csi-plugin
-``` 
+```
 
 ### Testing
 
@@ -284,7 +300,7 @@ To run all unit tests:
 $ make test
 ```
 #### Sanity Tests
-Sanity tests ensures the CSI spec conformance of the driver. For more info, refer [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity) 
+Sanity tests ensures the CSI spec conformance of the driver. For more info, refer [Sanity check](https://github.com/kubernetes-csi/csi-test/tree/master/pkg/sanity)
 
 Run sanity tests for cinder CSI driver using:
 
@@ -298,5 +314,5 @@ Optionally, to test the driver csc tool could be used. please refer, [usage guid
 
 Starting from Kubernetes 1.21, OpenStack Cinder CSI migration is supported as beta feature and is `ON` by default. Cinder CSI driver must be installed on clusters on OpenStack for Cinder volumes to work. If you have persistence volumes that are created with in-tree `kubernetes.io/cinder` plugin, you could migrate to use `cinder.csi.openstack.org` Container Storage Interface (CSI) Driver.
 
-* The CSI Migration feature for Cinder, when enabled, shims all plugin operations from the existing in-tree plugin to the `cinder.csi.openstack.org` CSI Driver. 
+* The CSI Migration feature for Cinder, when enabled, shims all plugin operations from the existing in-tree plugin to the `cinder.csi.openstack.org` CSI Driver.
 * For more info, please refer [Migrate to CCM with CSI Migration](../openstack-cloud-controller-manager/migrate-to-ccm-with-csimigration.md#migrate-from-in-tree-cloud-provider-to-openstack-cloud-controller-manager-and-enable-csimigration) guide

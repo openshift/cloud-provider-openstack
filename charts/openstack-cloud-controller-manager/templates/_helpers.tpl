@@ -12,19 +12,6 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{/*
-Common labels and app labels
-*/}}
-{{- define "occm.labels" -}}
-app.kubernetes.io/name: {{ include "occm.name" . }}
-helm.sh/chart: {{ include "occm.chart" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- if .Chart.AppVersion }}
-app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
-{{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service }}
-{{- end -}}
-
 {{- define "occm.common.matchLabels" -}}
 app: {{ template "occm.name" . }}
 release: {{ .Release.Name }}
@@ -73,8 +60,12 @@ Create cloud-config makro.
 {{- range $key, $value := .Values.cloudConfig.metadata }}
 {{ $key }} = {{ $value | quote }}
 {{- end }}
-{{- end }}
 
+[Route]
+{{- range $key, $value := .Values.cloudConfig.route }}
+{{ $key }} = {{ $value | quote }}
+{{- end }}
+{{- end }}
 
 {{/*
 Generate string of enabled controllers. Might have a trailing comma (,) which needs to be trimmed.
