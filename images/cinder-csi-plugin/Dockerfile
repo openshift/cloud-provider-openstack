@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.21-openshift-4.17
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.22-openshift-4.17
 WORKDIR /go/src/k8s.io/cloud-provider-openstack
 COPY . .
 RUN go build -o cinder-csi-plugin ./cmd/cinder-csi-plugin
