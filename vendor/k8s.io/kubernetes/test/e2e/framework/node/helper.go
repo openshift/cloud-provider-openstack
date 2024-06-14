@@ -46,11 +46,10 @@ func WaitForAllNodesSchedulable(ctx context.Context, c clientset.Interface, time
 	}
 
 	framework.Logf("Waiting up to %v for all (but %d) nodes to be schedulable", timeout, framework.TestContext.AllowedNotReadyNodes)
-	return wait.PollUntilContextTimeout(
+	return wait.PollImmediateWithContext(
 		ctx,
 		30*time.Second,
 		timeout,
-		true,
 		CheckReadyForTests(ctx, c, framework.TestContext.NonblockingTaints, framework.TestContext.AllowedNotReadyNodes, largeClusterThreshold),
 	)
 }
