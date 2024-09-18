@@ -45,8 +45,6 @@ var (
 	provideControllerService bool
 	provideNodeService       bool
 	noClient                 bool
-	withTopology             bool
-	attachMode               string
 )
 
 func main() {
@@ -102,9 +100,6 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
-	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
-
-	cmd.PersistentFlags().StringVar(&attachMode, "attach-mode", "nova", "Volume attach mode: 'nova' uses Nova attach/detach, 'direct' uses Cinder Attachment API with os-brick sidecar for direct attachment (typically bare-metal nodes)")
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -118,10 +113,7 @@ func handle() {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
-	// Initialize cloud
-	if attachMode != cinder.AttachModeNova && attachMode != cinder.AttachModeDirect {
-		klog.Fatalf("Invalid --attach-mode %q: must be %q or %q", attachMode, cinder.AttachModeNova, cinder.AttachModeDirect)
-	}
+	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
 
 	d := cinder.NewDriver(&cinder.DriverOpts{
 		Endpoint:     endpoint,
@@ -137,27 +129,28 @@ func handle() {
 		var err error
 		clouds := make(map[string]openstack.IOpenStack)
 		for _, cloudName := range cloudNames {
-			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, false)
 			if err != nil {
 				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
 				return
 			}
 		}
 
-		var connProps cinder.ConnectorPropertiesGetter
-		if attachMode == cinder.AttachModeDirect {
-			kubeClient := csi.GetKubeClient()
-			var connPropsErr error
-			connProps, connPropsErr = cinder.NewKubeConnectorPropertiesGetter(kubeClient, stopCh)
-			if connPropsErr != nil {
-				klog.Fatalf("Failed to create connector properties getter: %v", connPropsErr)
-			}
-		}
-
-		d.SetupControllerService(clouds, connProps)
+		d.SetupControllerService(clouds)
 	}
 
 	if provideNodeService {
+		var err error
+		clouds := make(map[string]openstack.IOpenStack)
+		for _, cloudName := range cloudNames {
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, noClient)
+			if err != nil {
+				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+				return
+			}
+		}
+
+		//Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
