@@ -62,8 +62,8 @@ $(BUILD_CMDS):
 .PHONY: test
 test: unit functional
 
-check:
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --timeout=20m ./...
+check: work
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0 run ./...
 
 .PHONY: lint-charts
 lint-charts:
