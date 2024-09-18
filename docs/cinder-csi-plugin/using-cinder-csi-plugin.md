@@ -128,6 +128,13 @@ In addition to the standard set of klog flags, `cinder-csi-plugin` accepts the f
 
   Defaults to `false` (disabled).
   </dd>
+
+  <dt>--node-service-no-os-client &lt;disabled&gt;</dt>
+  <dd>
+  If set to true then the CSI driver does not provide the OpenStack client in the node service.
+
+  The default is to provide the OpenStack client in the node service.
+  </dd>
 </dl>
 
 ## Driver Config

@@ -43,7 +43,6 @@ var (
 	provideControllerService bool
 	provideNodeService       bool
 	noClient                 bool
-	withTopology             bool
 )
 
 func main() {
@@ -99,7 +98,6 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
-	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -122,7 +120,7 @@ func handle() {
 		var err error
 		clouds := make(map[string]openstack.IOpenStack)
 		for _, cloudName := range cloudNames {
-			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, false)
 			if err != nil {
 				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
 				return
@@ -133,7 +131,17 @@ func handle() {
 	}
 
 	if provideNodeService {
-		// Initialize mount
+		var err error
+		clouds := make(map[string]openstack.IOpenStack)
+		for _, cloudName := range cloudNames {
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, noClient)
+			if err != nil {
+				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+				return
+			}
+		}
+
+		//Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
