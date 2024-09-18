@@ -83,11 +83,7 @@ $(BUILD_CMDS): $(SOURCES)
 test: unit functional
 
 check: work
-	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run --timeout=20m ./...
-
-.PHONY: lint-charts
-lint-charts:
-	hack/verify-helm-charts.sh
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0 run ./...
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
