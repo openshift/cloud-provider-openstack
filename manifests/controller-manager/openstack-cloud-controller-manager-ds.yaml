@@ -49,16 +49,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: openstack-cloud-controller-manager
-          securityContext:
-            capabilities:
-              drop:
-                - ALL
-            readOnlyRootFilesystem: true
-            seccompProfile:
-              type: RuntimeDefault
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-          image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.36.0
+          image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.31.1
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=1
