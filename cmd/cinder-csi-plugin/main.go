@@ -31,11 +31,14 @@ import (
 )
 
 var (
-	endpoint     string
-	nodeID       string
-	cloudConfig  []string
-	cluster      string
-	httpEndpoint string
+	endpoint                 string
+	nodeID                   string
+	cloudConfig              []string
+	cluster                  string
+	httpEndpoint             string
+	provideControllerService bool
+	provideNodeService       bool
+	noClient                 bool
 )
 
 func main() {
@@ -64,7 +67,12 @@ func main() {
 	}
 
 	cmd.PersistentFlags().StringVar(&cluster, "cluster", "", "The identifier of the cluster that the plugin is running in.")
-	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
+	cmd.PersistentFlags().StringVar(&httpEndpoint, "http-endpoint", "", "The TCP network address where the HTTP server for providing metrics for diagnostics, will listen (example: `:8080`). The default is empty string, which means the server is disabled.")
+
+	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
+	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
+	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
+
 	openstack.AddExtraFlags(pflag.CommandLine)
 
 	code := cli.Run(cmd)
@@ -73,19 +81,35 @@ func main() {
 
 func handle() {
 	// Initialize cloud
-	d := cinder.NewDriver(endpoint, cluster)
+	d := cinder.NewDriver(&cinder.DriverOpts{Endpoint: endpoint, ClusterID: cluster})
+
 	openstack.InitOpenStackProvider(cloudConfig, httpEndpoint)
-	cloud, err := openstack.GetOpenStackProvider()
-	if err != nil {
-		klog.Warningf("Failed to GetOpenStackProvider: %v", err)
-		return
+
+	if provideControllerService {
+		cloud, err := openstack.GetOpenStackProvider(false)
+		if err != nil {
+			klog.Warningf("Failed to GetOpenStackProvider: %v", err)
+			return
+		}
+
+		d.SetupControllerService(cloud)
 	}
-	//Initialize mount
-	mount := mount.GetMountProvider()
 
-	//Initialize Metadata
-	metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+	if provideNodeService {
+		cloud, err := openstack.GetOpenStackProvider(noClient)
+		if err != nil {
+			klog.Warningf("Failed to GetOpenStackProvider: %v", err)
+			return
+		}
 
-	d.SetupDriver(cloud, mount, metadata)
+		//Initialize mount
+		mount := mount.GetMountProvider()
+
+		//Initialize Metadata
+		metadata := metadata.GetMetadataProvider(cloud.GetMetadataOpts().SearchOrder)
+
+		d.SetupNodeService(cloud, mount, metadata)
+	}
+
 	d.Run()
 }
