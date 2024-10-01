@@ -180,7 +180,7 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 	}
 	logcfg(cfg)
 	global := cfg.Global[cloudName]
-	if global == nil {
+	if global == nil && !noClient {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 
@@ -199,7 +199,7 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 		return NoopInstances[cloudName], nil
 	}
 
-	provider, err := client.NewOpenStackClient(cfg.Global[cloudName], "cinder-csi-plugin", userAgentData...)
+	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)
 	if err != nil {
 		return nil, err
 	}
