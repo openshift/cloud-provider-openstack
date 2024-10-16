@@ -16,7 +16,6 @@ type ListOpts struct {
 	ID          string `q:"id"`
 	Name        string `q:"name"`
 	Description string `q:"description"`
-	Stateful    *bool  `q:"stateful"`
 	TenantID    string `q:"tenant_id"`
 	ProjectID   string `q:"project_id"`
 	Limit       int    `q:"limit"`
@@ -64,9 +63,6 @@ type CreateOpts struct {
 
 	// Describes the security group.
 	Description string `json:"description,omitempty"`
-
-	// Stateful indicates if the security group is stateful or stateless.
-	Stateful *bool `json:"stateful,omitempty"`
 }
 
 // ToSecGroupCreateMap builds a request body from CreateOpts.
@@ -101,9 +97,6 @@ type UpdateOpts struct {
 
 	// Describes the security group.
 	Description *string `json:"description,omitempty"`
-
-	// Stateful indicates if the security group is stateful or stateless.
-	Stateful *bool `json:"stateful,omitempty"`
 }
 
 // ToSecGroupUpdateMap builds a request body from UpdateOpts.
