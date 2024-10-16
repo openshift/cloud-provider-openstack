@@ -243,11 +243,11 @@ func makePodSpec(config e2evolume.TestConfig, initCmd string, volsrc v1.VolumeSo
 }
 
 // Write `fsize` bytes to `fpath` in the pod, using dd and the `ddInput` file.
-func writeToFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath, ddInput string, fsize int64) error {
+func writeToFile(f *framework.Framework, pod *v1.Pod, fpath, ddInput string, fsize int64) error {
 	ginkgo.By(fmt.Sprintf("writing %d bytes to test file %s", fsize, fpath))
 	loopCnt := fsize / storageframework.MinFileSize
 	writeCmd := fmt.Sprintf("i=0; while [ $i -lt %d ]; do dd if=%s bs=%d >>%s 2>/dev/null; let i+=1; done", loopCnt, ddInput, storageframework.MinFileSize, fpath)
-	stdout, stderr, err := e2epod.ExecShellInPodWithFullOutput(ctx, f, pod.Name, writeCmd)
+	stdout, stderr, err := e2evolume.PodExec(f, pod, writeCmd)
 	if err != nil {
 		return fmt.Errorf("error writing to volume using %q: %s\nstdout: %s\nstderr: %s", writeCmd, err, stdout, stderr)
 	}
@@ -255,9 +255,9 @@ func writeToFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath
 }
 
 // Verify that the test file is the expected size and contains the expected content.
-func verifyFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath string, expectSize int64, ddInput string) error {
+func verifyFile(f *framework.Framework, pod *v1.Pod, fpath string, expectSize int64, ddInput string) error {
 	ginkgo.By("verifying file size")
-	rtnstr, stderr, err := e2epod.ExecShellInPodWithFullOutput(ctx, f, pod.Name, fmt.Sprintf("stat -c %%s %s", fpath))
+	rtnstr, stderr, err := e2evolume.PodExec(f, pod, fmt.Sprintf("stat -c %%s %s", fpath))
 	if err != nil || rtnstr == "" {
 		return fmt.Errorf("unable to get file size via `stat %s`: %v\nstdout: %s\nstderr: %s", fpath, err, rtnstr, stderr)
 	}
@@ -270,14 +270,14 @@ func verifyFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath 
 	}
 
 	ginkgo.By("verifying file hash")
-	rtnstr, stderr, err = e2epod.ExecShellInPodWithFullOutput(ctx, f, pod.Name, fmt.Sprintf("md5sum %s | cut -d' ' -f1", fpath))
+	rtnstr, stderr, err = e2evolume.PodExec(f, pod, fmt.Sprintf("md5sum %s | cut -d' ' -f1", fpath))
 	if err != nil {
 		return fmt.Errorf("unable to test file hash via `md5sum %s`: %v\nstdout: %s\nstderr: %s", fpath, err, rtnstr, stderr)
 	}
 	actualHash := strings.TrimSuffix(rtnstr, "\n")
 	expectedHash, ok := md5hashes[expectSize]
 	if !ok {
-		return fmt.Errorf("file hash is unknown for file size %d. Was a new file size added to the test suite?",
+		return fmt.Errorf("File hash is unknown for file size %d. Was a new file size added to the test suite?",
 			expectSize)
 	}
 	if actualHash != expectedHash {
@@ -289,9 +289,9 @@ func verifyFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath 
 }
 
 // Delete `fpath` to save some disk space on host. Delete errors are logged but ignored.
-func deleteFile(ctx context.Context, f *framework.Framework, pod *v1.Pod, fpath string) {
+func deleteFile(f *framework.Framework, pod *v1.Pod, fpath string) {
 	ginkgo.By(fmt.Sprintf("deleting test file %s...", fpath))
-	stdout, stderr, err := e2epod.ExecShellInPodWithFullOutput(ctx, f, pod.Name, fmt.Sprintf("rm -f %s", fpath))
+	stdout, stderr, err := e2evolume.PodExec(f, pod, fmt.Sprintf("rm -f %s", fpath))
 	if err != nil {
 		// keep going, the test dir will be deleted when the volume is unmounted
 		framework.Logf("unable to delete test file %s: %v\nerror ignored, continuing test\nstdout: %s\nstderr: %s", fpath, err, stdout, stderr)
@@ -323,7 +323,7 @@ func testVolumeIO(ctx context.Context, f *framework.Framework, cs clientset.Inte
 		return fmt.Errorf("failed to create client pod %q: %w", clientPod.Name, err)
 	}
 	ginkgo.DeferCleanup(func(ctx context.Context) {
-		deleteFile(ctx, f, clientPod, ddInput)
+		deleteFile(f, clientPod, ddInput)
 		ginkgo.By(fmt.Sprintf("deleting client pod %q...", clientPod.Name))
 		e := e2epod.DeletePodWithWait(ctx, cs, clientPod)
 		if e != nil {
@@ -350,12 +350,12 @@ func testVolumeIO(ctx context.Context, f *framework.Framework, cs clientset.Inte
 		}
 		fpath := filepath.Join(mountPath, fmt.Sprintf("%s-%d", file, fsize))
 		defer func() {
-			deleteFile(ctx, f, clientPod, fpath)
+			deleteFile(f, clientPod, fpath)
 		}()
-		if err = writeToFile(ctx, f, clientPod, fpath, ddInput, fsize); err != nil {
+		if err = writeToFile(f, clientPod, fpath, ddInput, fsize); err != nil {
 			return err
 		}
-		if err = verifyFile(ctx, f, clientPod, fpath, fsize, ddInput); err != nil {
+		if err = verifyFile(f, clientPod, fpath, fsize, ddInput); err != nil {
 			return err
 		}
 	}
