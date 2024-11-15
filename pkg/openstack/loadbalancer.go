@@ -1371,19 +1371,6 @@ func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Se
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
 	}
 
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
-	// Get service node-selector annotations
-	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
-	for key, value := range svcConf.nodeSelectors {
-		if value == "" {
-			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
-		} else {
-			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
-		}
-	}
-
 	// Find subnet ID for creating members
 	memberSubnetID, err := lbaas.getMemberSubnetID(service)
 	if err != nil {
@@ -1415,7 +1402,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Se
 			}
 		}
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
 }
 
 func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Service, svcConf *serviceConfig) error {
@@ -1445,19 +1432,6 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 		// Since OCCM does not support multiple load-balancers per service yet,
 		// the first IP family will determine the IP family of the load-balancer
 		svcConf.preferredIPFamily = service.Spec.IPFamilies[0]
-	}
-
-	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
-	// Get service node-selector annotations
-	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
-	for key, value := range svcConf.nodeSelectors {
-		if value == "" {
-			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
-		} else {
-			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
-		}
 	}
 
 	// If in the config file internal-lb=true, user is not allowed to create external service.
@@ -1623,27 +1597,21 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
 }
 
-func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.poolLbMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
-
-	annotations := service.GetAnnotations()
-	svcConf.lbTags = annotations[ServiceAnnotationLoadBalancerTags]
-	svcConf.listenerTags = annotations[ServiceAnnotationListenerTags]
-	svcConf.poolTags = annotations[ServiceAnnotationPoolTags]
+	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Get service node-selector annotations
 	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
 	for key, value := range svcConf.nodeSelectors {
 		if value == "" {
-			klog.V(3).Infof("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
+			klog.V(3).InfoS("Target node label %s key is set to LoadBalancer service %s", key, serviceName)
 		} else {
-			klog.V(3).Infof("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
+			klog.V(3).InfoS("Target node label %s=%s is set to LoadBalancer service %s", key, value, serviceName)
 		}
 	}
 
