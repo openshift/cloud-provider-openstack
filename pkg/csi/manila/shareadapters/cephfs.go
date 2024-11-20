@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack/sharedfilesystems/v2/shares"
@@ -72,12 +73,37 @@ func (Cephfs) GetOrGrantAccesses(ctx context.Context, args *GrantAccessArgs) ([]
 		if err != nil {
 			return nil, fmt.Errorf("failed to grant access right: %v", err)
 		}
-		accessRight, err = waitForAccessRuleActive(ctx, args.ManilaClient, args.Share.ID, result.ID)
-		if err != nil {
-			return nil, err
+		if result.AccessKey == "" {
+			// Wait till a ceph key is assigned to the access right
+			backoff := wait.Backoff{
+				Duration: time.Second * 5,
+				Factor:   1.2,
+				Steps:    10,
+			}
+			wait_err := wait.ExponentialBackoff(backoff, func() (bool, error) {
+				rights, err := args.ManilaClient.GetAccessRights(ctx, args.Share.ID)
+				if err != nil {
+					return false, fmt.Errorf("error get access rights for share %s: %v", args.Share.ID, err)
+				}
+				if len(rights) == 0 {
+					return false, fmt.Errorf("cannot find the access right we've just created")
+				}
+				for _, r := range rights {
+					if r.AccessTo == accessRightClient && r.AccessKey != "" {
+						accessRight = &r
+						return true, nil
+					}
+				}
+				klog.V(4).Infof("Access key for %s is not set yet, retrying...", accessRightClient)
+				return false, nil
+			})
+			if wait_err != nil {
+				return nil, fmt.Errorf("timed out while attempting to get access rights for share %s: %v", args.Share.ID, err)
+			}
 		}
 	}
 	return []shares.AccessRight{*accessRight}, nil
+
 }
 
 func (Cephfs) BuildVolumeContext(args *VolumeContextArgs) (volumeContext map[string]string, err error) {
