@@ -144,12 +144,12 @@
           set -x
           set -e
 
-          mkdir -p {{ ansible_facts["user_dir"] }}/csi-pod
+          mkdir -p /var/log/csi-pod
           kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin
           kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin
 
-          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/csi-cinder-nodeplugin.log
+          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-controllerplugin.log
+          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > /var/log/csi-pod/csi-cinder-nodeplugin.log
 
     - name: Show openstack-cloud-controller-manager pod logs
       shell:
@@ -157,17 +157,7 @@
         cmd: |
           kubectl -n kube-system logs ds/openstack-cloud-controller-manager
 
-          kubectl -n kube-system logs ds/openstack-cloud-controller-manager > {{ ansible_facts["user_dir"] }}/csi-pod/occm.log
-
-    - name: Collect pod logs for debug purpose (early collection on deployment failure)
-      shell:
-        executable: /bin/bash
-        cmd: |
-          set -x
-          mkdir -p {{ ansible_facts["user_dir"] }}/csi-pod
-          kubectl logs deployment/csi-cinder-controllerplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/deployment-csi-cinder-controllerplugin.log
-          kubectl logs daemonset/csi-cinder-nodeplugin -n kube-system -c cinder-csi-plugin > {{ ansible_facts["user_dir"] }}/csi-pod/deployment-csi-cinder-nodeplugin.log
-      ignore_errors: true
+          kubectl -n kube-system logs ds/openstack-cloud-controller-manager > /var/log/csi-pod/occm.log
 
     - name: &failmsg Stop due to prior failure of csi-cinder-plugin
       fail:

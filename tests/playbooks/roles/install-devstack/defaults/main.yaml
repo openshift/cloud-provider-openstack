@@ -1,9 +1,7 @@
 ---
 user: "stack"
 workdir: "/home/{{ user }}/devstack"
-branch: "stable/2025.2"
-# enable_services is used to enable services that have granular confguration in `local.conf.j2`.
-# See tests/playbooks/roles/install-devstack/templates/local.conf.j2 for which services have such configuration.
+branch: "stable/2023.2"
 enable_services:
   - nova
   - glance
