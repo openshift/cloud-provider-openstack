@@ -28,4 +28,3 @@
         GOPATH: '{{ ansible_user_dir }}'
         PATH: '/usr/local/go/bin:{{ ansible_user_dir }}/bin:{{ ansible_env.PATH }}'
         KUBECONFIG: '{{ ansible_user_dir }}/.kube/config'
-      run_e2e_manila: "{{ run_e2e | bool }}"
