@@ -43,6 +43,7 @@ var (
 	provideControllerService bool
 	provideNodeService       bool
 	noClient                 bool
+	withTopology             bool
 )
 
 func main() {
@@ -89,6 +90,8 @@ func main() {
 
 	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
 
+	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
+
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
 	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
@@ -110,7 +113,6 @@ func handle() {
 	d := cinder.NewDriver(&cinder.DriverOpts{
 		Endpoint:     endpoint,
 		ClusterID:    cluster,
-		PVCLister:    csi.GetPVCLister(),
 		WithTopology: withTopology,
 	})
 
