@@ -36,11 +36,7 @@ func fakeControllerServer() (*controllerServer, *openstack.OpenStackMock) {
 
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true})
 
-	cs := NewControllerServer(d, map[string]openstack.IOpenStack{
-		"": osmock,
-	})
-	return cs, osmock
-}
+		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true})
 
 func fakeControllerServerWithMultipleRegions() (*controllerServer, *openstack.OpenStackMock, *openstack.OpenStackMock) {
 	osmock := new(openstack.OpenStackMock)
