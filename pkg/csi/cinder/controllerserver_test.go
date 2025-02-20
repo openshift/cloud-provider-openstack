@@ -23,12 +23,8 @@ import (
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
-	sharedcsi "k8s.io/cloud-provider-openstack/pkg/csi"
 	"k8s.io/cloud-provider-openstack/pkg/csi/cinder/openstack"
-	cpoerrors "k8s.io/cloud-provider-openstack/pkg/util/errors"
 )
 
 func fakeControllerServer() (*controllerServer, *openstack.OpenStackMock) {
@@ -661,9 +657,6 @@ type ListVolumesTestResult struct {
 }
 
 func TestGlobalListVolumesMultipleClouds(t *testing.T) {
-	fakeCs, osmock := fakeControllerServer()
-	fakeCsMulti, osmockMulti, osmockMultiAlt := fakeControllerServerWithMultipleRegions()
-
 	tests := []*ListVolumesTest{
 		{
 			name:       "Single cloud, no volume",
@@ -729,11 +722,11 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud:      osmockMulti,
+					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
 				},
 				"region-x": {
-					mockCloud:      osmockMultiAlt,
+					mockCloud:      osmockRegionX,
 					mockVolumesRes: []volumes.Volume{},
 				},
 			},
@@ -748,11 +741,11 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			maxEntries:    0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud:      osmockMulti,
+					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
 				},
 				"region-x": {
-					mockCloud:      osmockMultiAlt,
+					mockCloud:      osmockRegionX,
 					mockVolumesRes: []volumes.Volume{},
 				},
 			},
@@ -765,7 +758,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			maxEntries: 0,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud: osmockMulti,
+					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
 						{ID: "vol2"},
@@ -774,7 +767,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 					},
 				},
 				"region-x": {
-					mockCloud: osmockMultiAlt,
+					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol5"},
 						{ID: "vol6"},
@@ -798,7 +791,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			startingToken: ":region-x",
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud: osmockMulti,
+					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
 						{ID: "vol2"},
@@ -807,7 +800,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 					},
 				},
 				"region-x": {
-					mockCloud: osmockMultiAlt,
+					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol5"},
 						{ID: "vol6"},
@@ -829,11 +822,11 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			maxEntries: 2,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud:      osmockMulti,
+					mockCloud:      osmock,
 					mockVolumesRes: []volumes.Volume{},
 				},
 				"region-x": {
-					mockCloud:      osmockMultiAlt,
+					mockCloud:      osmockRegionX,
 					mockVolumesRes: []volumes.Volume{},
 				},
 			},
@@ -847,14 +840,14 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			maxEntries: 2,
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud: osmockMulti,
+					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
 						{ID: "vol2"},
 					},
 				},
 				"region-x": {
-					mockCloud: osmockMultiAlt,
+					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol3"},
 						{ID: "vol4"},
@@ -876,14 +869,14 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			startingToken: ":region-x",
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud: osmockMulti,
+					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
 						{ID: "vol2"},
 					},
 				},
 				"region-x": {
-					mockCloud: osmockMultiAlt,
+					mockCloud: osmockRegionX,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol3"},
 						{ID: "vol4"},
@@ -905,14 +898,14 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			startingToken: "vol4:region-x",
 			volumeSet: map[string]ListVolumeTestOSMock{
 				"": {
-					mockCloud: osmockMulti,
+					mockCloud: osmock,
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol1"},
 						{ID: "vol2"},
 					},
 				},
 				"region-x": {
-					mockCloud:    osmockMultiAlt,
+					mockCloud:    osmockRegionX,
 					mockTokenReq: "vol4",
 					mockVolumesRes: []volumes.Volume{
 						{ID: "vol5"},
@@ -929,6 +922,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Init assert
 			assert := assert.New(t)
 			// Setup Mock
 			for _, volumeSet := range test.volumeSet {
@@ -961,7 +955,7 @@ func TestGlobalListVolumesMultipleClouds(t *testing.T) {
 			// Invoke ListVolumes
 			cs := fakeCs
 			if len(test.volumeSet) > 1 {
-				cs = fakeCsMulti
+				cs = fakeCsMultipleClouds
 			}
 			actualRes, err := cs.ListVolumes(FakeCtx, fakeReq)
 			if err != nil {
