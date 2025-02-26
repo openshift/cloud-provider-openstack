@@ -1,8 +1,8 @@
 apiVersion: v2
-appVersion: v1.31.2
+appVersion: v1.31.3
 description: Openstack Cloud Controller Manager Helm Chart
 name: openstack-cloud-controller-manager
-version: 2.31.2
+version: 2.31.3
 maintainers:
 - name: stephenfin
   email: stephenfin@redhat.com
