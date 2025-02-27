@@ -288,6 +288,23 @@ func Madvise(b []byte, advice int) (err error) {
 	return
 }
 
+func Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
+	return mapper.Mmap(fd, offset, length, prot, flags)
+}
+
+func Munmap(b []byte) (err error) {
+	return mapper.Munmap(b)
+}
+
+func MmapPtr(fd int, offset int64, addr unsafe.Pointer, length uintptr, prot int, flags int) (ret unsafe.Pointer, err error) {
+	xaddr, err := mapper.mmap(uintptr(addr), length, prot, flags, fd, offset)
+	return unsafe.Pointer(xaddr), err
+}
+
+func MunmapPtr(addr unsafe.Pointer, length uintptr) (err error) {
+	return mapper.munmap(uintptr(addr), length)
+}
+
 //sys   Gethostname(buf []byte) (err error) = SYS___GETHOSTNAME_A
 //sysnb	Getegid() (egid int)
 //sysnb	Geteuid() (uid int)
@@ -329,6 +346,131 @@ func Lstat(path string, stat *Stat_t) (err error) {
 	var statLE Stat_LE_t
 	err = lstat(path, &statLE)
 	copyStat(stat, &statLE)
+	return
+}
+
+// for checking symlinks begins with $VERSION/ $SYSNAME/ $SYSSYMR/ $SYSSYMA/
+func isSpecialPath(path []byte) (v bool) {
+	var special = [4][8]byte{
+		{'V', 'E', 'R', 'S', 'I', 'O', 'N', '/'},
+		{'S', 'Y', 'S', 'N', 'A', 'M', 'E', '/'},
+		{'S', 'Y', 'S', 'S', 'Y', 'M', 'R', '/'},
+		{'S', 'Y', 'S', 'S', 'Y', 'M', 'A', '/'}}
+
+	var i, j int
+	for i = 0; i < len(special); i++ {
+		for j = 0; j < len(special[i]); j++ {
+			if path[j] != special[i][j] {
+				break
+			}
+		}
+		if j == len(special[i]) {
+			return true
+		}
+	}
+	return false
+}
+
+func realpath(srcpath string, abspath []byte) (pathlen int, errno int) {
+	var source [1024]byte
+	copy(source[:], srcpath)
+	source[len(srcpath)] = 0
+	ret := runtime.CallLeFuncByPtr(runtime.XplinkLibvec+SYS___REALPATH_A<<4, //__realpath_a()
+		[]uintptr{uintptr(unsafe.Pointer(&source[0])),
+			uintptr(unsafe.Pointer(&abspath[0]))})
+	if ret != 0 {
+		index := bytes.IndexByte(abspath[:], byte(0))
+		if index != -1 {
+			return index, 0
+		}
+	} else {
+		errptr := (*int)(unsafe.Pointer(runtime.CallLeFuncByPtr(runtime.XplinkLibvec+SYS___ERRNO<<4, []uintptr{}))) //__errno()
+		return 0, *errptr
+	}
+	return 0, 245 // EBADDATA   245
+}
+
+func Readlink(path string, buf []byte) (n int, err error) {
+	var _p0 *byte
+	_p0, err = BytePtrFromString(path)
+	if err != nil {
+		return
+	}
+	var _p1 unsafe.Pointer
+	if len(buf) > 0 {
+		_p1 = unsafe.Pointer(&buf[0])
+	} else {
+		_p1 = unsafe.Pointer(&_zero)
+	}
+	n = int(runtime.CallLeFuncByPtr(runtime.XplinkLibvec+SYS___READLINK_A<<4,
+		[]uintptr{uintptr(unsafe.Pointer(_p0)), uintptr(_p1), uintptr(len(buf))}))
+	runtime.KeepAlive(unsafe.Pointer(_p0))
+	if n == -1 {
+		value := *(*int32)(unsafe.Pointer(runtime.CallLeFuncByPtr(runtime.XplinkLibvec+SYS___ERRNO<<4, []uintptr{})))
+		err = errnoErr(Errno(value))
+	} else {
+		if buf[0] == '$' {
+			if isSpecialPath(buf[1:9]) {
+				cnt, err1 := realpath(path, buf)
+				if err1 == 0 {
+					n = cnt
+				}
+			}
+		}
+	}
+	return
+}
+
+func impl_Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
+	var _p0 *byte
+	_p0, err = BytePtrFromString(path)
+	if err != nil {
+		return
+	}
+	var _p1 unsafe.Pointer
+	if len(buf) > 0 {
+		_p1 = unsafe.Pointer(&buf[0])
+	} else {
+		_p1 = unsafe.Pointer(&_zero)
+	}
+	runtime.EnterSyscall()
+	r0, e2, e1 := CallLeFuncWithErr(GetZosLibVec()+SYS___READLINKAT_A<<4, uintptr(dirfd), uintptr(unsafe.Pointer(_p0)), uintptr(_p1), uintptr(len(buf)))
+	runtime.ExitSyscall()
+	n = int(r0)
+	if int64(r0) == -1 {
+		err = errnoErr2(e1, e2)
+		return n, err
+	} else {
+		if buf[0] == '$' {
+			if isSpecialPath(buf[1:9]) {
+				cnt, err1 := realpath(path, buf)
+				if err1 == 0 {
+					n = cnt
+				}
+			}
+		}
+	}
+	return
+}
+
+//go:nosplit
+func get_ReadlinkatAddr() *(func(dirfd int, path string, buf []byte) (n int, err error))
+
+var Readlinkat = enter_Readlinkat
+
+func enter_Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
+	funcref := get_ReadlinkatAddr()
+	if funcptrtest(GetZosLibVec()+SYS___READLINKAT_A<<4, "") == 0 {
+		*funcref = impl_Readlinkat
+	} else {
+		*funcref = error_Readlinkat
+	}
+	return (*funcref)(dirfd, path, buf)
+}
+
+func error_Readlinkat(dirfd int, path string, buf []byte) (n int, err error) {
+	n = -1
+	err = ENOSYS
 	return
 }
 
@@ -1975,4 +2117,118 @@ func direntNamlen(buf []byte) (uint64, bool) {
 		return 0, false
 	}
 	return reclen - uint64(unsafe.Offsetof(Dirent{}.Name)), true
+}
+
+//go:nosplit
+func get_MkfifoatAddr() *(func(dirfd int, path string, mode uint32) (err error))
+
+var Mkfifoat = enter_Mkfifoat
+
+func enter_Mkfifoat(dirfd int, path string, mode uint32) (err error) {
+	funcref := get_MkfifoatAddr()
+	if funcptrtest(GetZosLibVec()+SYS___MKFIFOAT_A<<4, "") == 0 {
+		*funcref = impl_Mkfifoat
+	} else {
+		*funcref = legacy_Mkfifoat
+	}
+	return (*funcref)(dirfd, path, mode)
+}
+
+func legacy_Mkfifoat(dirfd int, path string, mode uint32) (err error) {
+	dirname, err := ZosFdToPath(dirfd)
+	if err != nil {
+		return err
+	}
+	return Mkfifo(dirname+"/"+path, mode)
+}
+
+//sys	Posix_openpt(oflag int) (fd int, err error) = SYS_POSIX_OPENPT
+//sys	Grantpt(fildes int) (rc int, err error) = SYS_GRANTPT
+//sys	Unlockpt(fildes int) (rc int, err error) = SYS_UNLOCKPT
+
+func fcntlAsIs(fd uintptr, cmd int, arg uintptr) (val int, err error) {
+	runtime.EnterSyscall()
+	r0, e2, e1 := CallLeFuncWithErr(GetZosLibVec()+SYS_FCNTL<<4, uintptr(fd), uintptr(cmd), arg)
+	runtime.ExitSyscall()
+	val = int(r0)
+	if int64(r0) == -1 {
+		err = errnoErr2(e1, e2)
+	}
+	return
+}
+
+func Fcntl(fd uintptr, cmd int, op interface{}) (ret int, err error) {
+	switch op.(type) {
+	case *Flock_t:
+		err = FcntlFlock(fd, cmd, op.(*Flock_t))
+		if err != nil {
+			ret = -1
+		}
+		return
+	case int:
+		return FcntlInt(fd, cmd, op.(int))
+	case *F_cnvrt:
+		return fcntlAsIs(fd, cmd, uintptr(unsafe.Pointer(op.(*F_cnvrt))))
+	case unsafe.Pointer:
+		return fcntlAsIs(fd, cmd, uintptr(op.(unsafe.Pointer)))
+	default:
+		return -1, EINVAL
+	}
+	return
+}
+
+func Sendfile(outfd int, infd int, offset *int64, count int) (written int, err error) {
+	if raceenabled {
+		raceReleaseMerge(unsafe.Pointer(&ioSync))
+	}
+	return sendfile(outfd, infd, offset, count)
+}
+
+func sendfile(outfd int, infd int, offset *int64, count int) (written int, err error) {
+	// TODO: use LE call instead if the call is implemented
+	originalOffset, err := Seek(infd, 0, SEEK_CUR)
+	if err != nil {
+		return -1, err
+	}
+	//start reading data from in_fd
+	if offset != nil {
+		_, err := Seek(infd, *offset, SEEK_SET)
+		if err != nil {
+			return -1, err
+		}
+	}
+
+	buf := make([]byte, count)
+	readBuf := make([]byte, 0)
+	var n int = 0
+	for i := 0; i < count; i += n {
+		n, err := Read(infd, buf)
+		if n == 0 {
+			if err != nil {
+				return -1, err
+			} else { // EOF
+				break
+			}
+		}
+		readBuf = append(readBuf, buf...)
+		buf = buf[0:0]
+	}
+
+	n2, err := Write(outfd, readBuf)
+	if err != nil {
+		return -1, err
+	}
+
+	//When sendfile() returns, this variable will be set to the
+	// offset of the byte following the last byte that was read.
+	if offset != nil {
+		*offset = *offset + int64(n)
+		// If offset is not NULL, then sendfile() does not modify the file
+		// offset of in_fd
+		_, err := Seek(infd, originalOffset, SEEK_SET)
+		if err != nil {
+			return -1, err
+		}
+	}
+	return n2, nil
 }
