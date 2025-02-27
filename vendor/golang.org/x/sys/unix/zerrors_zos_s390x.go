@@ -452,8 +452,30 @@ const (
 	MADV_FREE                       = 15 // for Linux compatibility -- no zos semantics
 	MADV_WIPEONFORK                 = 16 // for Linux compatibility -- no zos semantics
 	MADV_KEEPONFORK                 = 17 // for Linux compatibility -- no zos semantics
-	AT_SYMLINK_NOFOLLOW             = 1  // for Unix  compatibility -- no zos semantics
-	AT_FDCWD                        = 2  // for Unix  compatibility -- no zos semantics
+	AT_SYMLINK_FOLLOW               = 0x400
+	AT_SYMLINK_NOFOLLOW             = 0x100
+	XATTR_CREATE                    = 0x1
+	XATTR_REPLACE                   = 0x2
+	P_PID                           = 0
+	P_PGID                          = 1
+	P_ALL                           = 2
+	PR_SET_NAME                     = 15
+	PR_GET_NAME                     = 16
+	PR_SET_NO_NEW_PRIVS             = 38
+	PR_GET_NO_NEW_PRIVS             = 39
+	PR_SET_DUMPABLE                 = 4
+	PR_GET_DUMPABLE                 = 3
+	PR_SET_PDEATHSIG                = 1
+	PR_GET_PDEATHSIG                = 2
+	PR_SET_CHILD_SUBREAPER          = 36
+	PR_GET_CHILD_SUBREAPER          = 37
+	AT_FDCWD                        = -100
+	AT_EACCESS                      = 0x200
+	AT_EMPTY_PATH                   = 0x1000
+	AT_REMOVEDIR                    = 0x200
+	RENAME_NOREPLACE                = 1 << 0
+	ST_RDONLY                       = 1
+	ST_NOSUID                       = 2
 )
 
 const (

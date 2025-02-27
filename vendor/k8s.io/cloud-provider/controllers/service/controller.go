@@ -113,6 +113,7 @@ func New(
 	recorder := broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "service-controller"})
 
 	registerMetrics()
+
 	s := &Controller{
 		cloud:            cloud,
 		kubeClient:       kubeClient,
@@ -125,6 +126,10 @@ func New(
 		serviceQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
 		nodeQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
 		lastSyncedNodes:  make(map[string][]*v1.Node),
+	}
+
+	if err := s.init(); err != nil {
+		return nil, err
 	}
 
 	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
@@ -180,10 +185,6 @@ func New(
 		},
 		nodeSyncPeriod,
 	)
-
-	if err := s.init(); err != nil {
-		return nil, err
-	}
 
 	return s, nil
 }

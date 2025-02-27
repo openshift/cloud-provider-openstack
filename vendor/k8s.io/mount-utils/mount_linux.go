@@ -385,14 +385,20 @@ func (*Mounter) List() ([]MountPoint, error) {
 	return ListProcMounts(procMountsPath)
 }
 
-// IsLikelyNotMountPoint determines if a directory is not a mountpoint.
-// It is fast but not necessarily ALWAYS correct. If the path is in fact
-// a bind mount from one part of a mount to another it will not be detected.
-// It also can not distinguish between mountpoints and symbolic links.
-// mkdir /tmp/a /tmp/b; mount --bind /tmp/a /tmp/b; IsLikelyNotMountPoint("/tmp/b")
-// will return true. When in fact /tmp/b is a mount point. If this situation
-// is of interest to you, don't use this function...
-func (mounter *Mounter) IsLikelyNotMountPoint(file string) (bool, error) {
+func statx(file string) (unix.Statx_t, error) {
+	var stat unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, file, unix.AT_STATX_DONT_SYNC, 0, &stat); err != nil {
+		if err == unix.ENOSYS {
+			return stat, errStatxNotSupport
+		}
+
+		return stat, err
+	}
+
+	return stat, nil
+}
+
+func (mounter *Mounter) isLikelyNotMountPointStat(file string) (bool, error) {
 	stat, err := os.Stat(file)
 	if err != nil {
 		return true, err
@@ -520,7 +526,7 @@ func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target
 			sensitiveOptionsLog := sanitizedOptionsForLogging(options, sensitiveOptions)
 			detailedErr := fmt.Sprintf("format of disk %q failed: type:(%q) target:(%q) options:(%q) errcode:(%v) output:(%v) ", source, fstype, target, sensitiveOptionsLog, err, string(output))
 			klog.Error(detailedErr)
-			return NewMountError(FormatFailed, detailedErr)
+			return NewMountError(FormatFailed, "%s", detailedErr)
 		}
 
 		klog.Infof("Disk successfully formatted (mkfs): %s - %s %s", fstype, source, target)
@@ -543,7 +549,7 @@ func (mounter *SafeFormatAndMount) formatAndMountSensitive(source string, target
 	// Mount the disk
 	klog.V(4).Infof("Attempting to mount disk %s in %s format at %s", source, fstype, target)
 	if err := mounter.MountSensitive(source, target, fstype, options, sensitiveOptions); err != nil {
-		return NewMountError(mountErrorValue, err.Error())
+		return NewMountError(mountErrorValue, "%s", err.Error())
 	}
 
 	return nil

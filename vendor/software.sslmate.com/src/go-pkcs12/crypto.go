@@ -12,10 +12,12 @@ import (
 	"crypto/des"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"hash"
+	"io"
 
 	"golang.org/x/crypto/pbkdf2"
 	"software.sslmate.com/src/go-pkcs12/internal/rc2"
@@ -23,11 +25,15 @@ import (
 
 var (
 	oidPBEWithSHAAnd3KeyTripleDESCBC = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 12, 1, 3})
+	oidPBEWithSHAAnd128BitRC2CBC     = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 12, 1, 5})
 	oidPBEWithSHAAnd40BitRC2CBC      = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 12, 1, 6})
 	oidPBES2                         = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 5, 13})
 	oidPBKDF2                        = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 1, 5, 12})
 	oidHmacWithSHA1                  = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 2, 7})
 	oidHmacWithSHA256                = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 2, 9})
+	oidHmacWithSHA512                = asn1.ObjectIdentifier([]int{1, 2, 840, 113549, 2, 11})
+	oidAES128CBC                     = asn1.ObjectIdentifier([]int{2, 16, 840, 1, 101, 3, 4, 1, 2})
+	oidAES192CBC                     = asn1.ObjectIdentifier([]int{2, 16, 840, 1, 101, 3, 4, 1, 22})
 	oidAES256CBC                     = asn1.ObjectIdentifier([]int{2, 16, 840, 1, 101, 3, 4, 1, 42})
 )
 
@@ -52,6 +58,20 @@ func (shaWithTripleDESCBC) deriveKey(salt, password []byte, iterations int) []by
 }
 
 func (shaWithTripleDESCBC) deriveIV(salt, password []byte, iterations int) []byte {
+	return pbkdf(sha1Sum, 20, 64, salt, password, iterations, 2, 8)
+}
+
+type shaWith128BitRC2CBC struct{}
+
+func (shaWith128BitRC2CBC) create(key []byte) (cipher.Block, error) {
+	return rc2.New(key, len(key)*8)
+}
+
+func (shaWith128BitRC2CBC) deriveKey(salt, password []byte, iterations int) []byte {
+	return pbkdf(sha1Sum, 20, 64, salt, password, iterations, 1, 16)
+}
+
+func (shaWith128BitRC2CBC) deriveIV(salt, password []byte, iterations int) []byte {
 	return pbkdf(sha1Sum, 20, 64, salt, password, iterations, 2, 8)
 }
 
@@ -80,6 +100,8 @@ func pbeCipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher.B
 	switch {
 	case algorithm.Algorithm.Equal(oidPBEWithSHAAnd3KeyTripleDESCBC):
 		cipherType = shaWithTripleDESCBC{}
+	case algorithm.Algorithm.Equal(oidPBEWithSHAAnd128BitRC2CBC):
+		cipherType = shaWith128BitRC2CBC{}
 	case algorithm.Algorithm.Equal(oidPBEWithSHAAnd40BitRC2CBC):
 		cipherType = shaWith40BitRC2CBC{}
 	case algorithm.Algorithm.Equal(oidPBES2):
@@ -94,7 +116,7 @@ func pbeCipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher.B
 		utf8Password := []byte(originalPassword)
 		return pbes2CipherFor(algorithm, utf8Password)
 	default:
-		return nil, nil, NotImplementedError("algorithm " + algorithm.Algorithm.String() + " is not supported")
+		return nil, nil, NotImplementedError("pbe algorithm " + algorithm.Algorithm.String() + " is not supported")
 	}
 
 	var params pbeParams
@@ -146,6 +168,7 @@ func pbDecrypt(info decryptable, password []byte) (decrypted []byte, err error) 
 	if len(decrypted) < psLen {
 		return nil, ErrDecryption
 	}
+
 	ps := decrypted[len(decrypted)-psLen:]
 	decrypted = decrypted[:len(decrypted)-psLen]
 	if bytes.Compare(ps, bytes.Repeat([]byte{byte(psLen)}, psLen)) != 0 {
@@ -155,30 +178,30 @@ func pbDecrypt(info decryptable, password []byte) (decrypted []byte, err error) 
 	return
 }
 
-// PBES2-params ::= SEQUENCE {
-// 	keyDerivationFunc AlgorithmIdentifier {{PBES2-KDFs}},
-// 	encryptionScheme AlgorithmIdentifier {{PBES2-Encs}}
-// }
+//	PBES2-params ::= SEQUENCE {
+//		keyDerivationFunc AlgorithmIdentifier {{PBES2-KDFs}},
+//		encryptionScheme AlgorithmIdentifier {{PBES2-Encs}}
+//	}
 type pbes2Params struct {
 	Kdf              pkix.AlgorithmIdentifier
 	EncryptionScheme pkix.AlgorithmIdentifier
 }
 
-// PBKDF2-params ::= SEQUENCE {
-//     salt CHOICE {
-//       specified OCTET STRING,
-//       otherSource AlgorithmIdentifier {{PBKDF2-SaltSources}}
-//     },
-//     iterationCount INTEGER (1..MAX),
-//     keyLength INTEGER (1..MAX) OPTIONAL,
-//     prf AlgorithmIdentifier {{PBKDF2-PRFs}} DEFAULT
-//     algid-hmacWithSHA1
-// }
+//	PBKDF2-params ::= SEQUENCE {
+//	    salt CHOICE {
+//	      specified OCTET STRING,
+//	      otherSource AlgorithmIdentifier {{PBKDF2-SaltSources}}
+//	    },
+//	    iterationCount INTEGER (1..MAX),
+//	    keyLength INTEGER (1..MAX) OPTIONAL,
+//	    prf AlgorithmIdentifier {{PBKDF2-PRFs}} DEFAULT
+//	    algid-hmacWithSHA1
+//	}
 type pbkdf2Params struct {
 	Salt       asn1.RawValue
 	Iterations int
-	KeyLength  int `asn1:"optional"`
-	Prf        pkix.AlgorithmIdentifier
+	KeyLength  int                      `asn1:"optional"`
+	Prf        pkix.AlgorithmIdentifier `asn1:"optional"`
 }
 
 func pbes2CipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher.Block, []byte, error) {
@@ -188,7 +211,7 @@ func pbes2CipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher
 	}
 
 	if !params.Kdf.Algorithm.Equal(oidPBKDF2) {
-		return nil, nil, NotImplementedError("kdf algorithm " + params.Kdf.Algorithm.String() + " is not supported")
+		return nil, nil, NotImplementedError("pbes2 kdf algorithm " + params.Kdf.Algorithm.String() + " is not supported")
 	}
 
 	var kdfParams pbkdf2Params
@@ -196,32 +219,41 @@ func pbes2CipherFor(algorithm pkix.AlgorithmIdentifier, password []byte) (cipher
 		return nil, nil, err
 	}
 	if kdfParams.Salt.Tag != asn1.TagOctetString {
-		return nil, nil, errors.New("pkcs12: only octet string salts are supported for pbkdf2")
+		return nil, nil, NotImplementedError("only octet string salts are supported for pbes2/pbkdf2")
 	}
 
 	var prf func() hash.Hash
 	switch {
 	case kdfParams.Prf.Algorithm.Equal(oidHmacWithSHA256):
 		prf = sha256.New
+	case kdfParams.Prf.Algorithm.Equal(oidHmacWithSHA512):
+		prf = sha512.New
 	case kdfParams.Prf.Algorithm.Equal(oidHmacWithSHA1):
 		prf = sha1.New
 	case kdfParams.Prf.Algorithm.Equal(asn1.ObjectIdentifier([]int{})):
 		prf = sha1.New
+	default:
+		return nil, nil, NotImplementedError("pbes2 prf " + kdfParams.Prf.Algorithm.String() + " is not supported")
 	}
 
-	key := pbkdf2.Key(password, kdfParams.Salt.Bytes, kdfParams.Iterations, 32, prf)
-	iv := params.EncryptionScheme.Parameters.Bytes
-
-	var block cipher.Block
+	var keyLen int
 	switch {
 	case params.EncryptionScheme.Algorithm.Equal(oidAES256CBC):
-		b, err := aes.NewCipher(key)
-		if err != nil {
-			return nil, nil, err
-		}
-		block = b
+		keyLen = 32
+	case params.EncryptionScheme.Algorithm.Equal(oidAES192CBC):
+		keyLen = 24
+	case params.EncryptionScheme.Algorithm.Equal(oidAES128CBC):
+		keyLen = 16
 	default:
 		return nil, nil, NotImplementedError("pbes2 algorithm " + params.EncryptionScheme.Algorithm.String() + " is not supported")
+	}
+
+	key := pbkdf2.Key(password, kdfParams.Salt.Bytes, kdfParams.Iterations, keyLen, prf)
+	iv := params.EncryptionScheme.Parameters.Bytes
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
 	}
 	return block, iv, nil
 }
@@ -262,4 +294,32 @@ func pbEncrypt(info encryptable, decrypted []byte, password []byte) error {
 type encryptable interface {
 	Algorithm() pkix.AlgorithmIdentifier
 	SetData([]byte)
+}
+
+func makePBES2Parameters(rand io.Reader, salt []byte, iterations int) ([]byte, error) {
+	var err error
+
+	randomIV := make([]byte, 16)
+	if _, err := rand.Read(randomIV); err != nil {
+		return nil, err
+	}
+
+	var kdfparams pbkdf2Params
+	if kdfparams.Salt.FullBytes, err = asn1.Marshal(salt); err != nil {
+		return nil, err
+	}
+	kdfparams.Iterations = iterations
+	kdfparams.Prf.Algorithm = oidHmacWithSHA256
+
+	var params pbes2Params
+	params.Kdf.Algorithm = oidPBKDF2
+	if params.Kdf.Parameters.FullBytes, err = asn1.Marshal(kdfparams); err != nil {
+		return nil, err
+	}
+	params.EncryptionScheme.Algorithm = oidAES256CBC
+	if params.EncryptionScheme.Parameters.FullBytes, err = asn1.Marshal(randomIV); err != nil {
+		return nil, err
+	}
+
+	return asn1.Marshal(params)
 }
