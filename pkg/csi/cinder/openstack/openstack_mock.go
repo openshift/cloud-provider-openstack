@@ -17,11 +17,15 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/volumes"
 	"github.com/gophercloud/gophercloud/v2/openstack/compute/v2/servers"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/cloud-provider-openstack/pkg/util/errors"
 	"k8s.io/cloud-provider-openstack/pkg/util/metadata"
 )
 
@@ -64,7 +68,7 @@ type OpenStackMock struct {
 // revive:enable:exported
 
 // AttachVolume provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (string, error) {
+func (_m *OpenStackMock) AttachVolume(ctx context.Context, instanceID string, volumeID string) (string, error) {
 	ret := _m.Called(instanceID, volumeID)
 
 	var r0 string
@@ -85,7 +89,16 @@ func (_m *OpenStackMock) AttachVolume(instanceID string, volumeID string) (strin
 }
 
 // CreateVolume provides a mock function with given fields: name, size, vtype, availability, tags
-func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error) {
+func (_m *OpenStackMock) CreateVolume(ctx context.Context, opts *volumes.CreateOpts, _ volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error) {
+	name := opts.Name
+	size := opts.Size
+	vtype := opts.VolumeType
+	availability := opts.AvailabilityZone
+	snapshotID := opts.SnapshotID
+	sourceVolID := opts.SourceVolID
+	sourceBackupID := opts.BackupID
+	tags := opts.Metadata
+
 	ret := _m.Called(name, size, vtype, availability, snapshotID, sourceVolID, sourceBackupID, tags)
 
 	var r0 *volumes.Volume
@@ -106,7 +119,7 @@ func (_m *OpenStackMock) CreateVolume(name string, size int, vtype string, avail
 }
 
 // DeleteVolume provides a mock function with given fields: volumeID
-func (_m *OpenStackMock) DeleteVolume(volumeID string) error {
+func (_m *OpenStackMock) DeleteVolume(ctx context.Context, volumeID string) error {
 	ret := _m.Called(volumeID)
 
 	var r0 error
@@ -120,12 +133,12 @@ func (_m *OpenStackMock) DeleteVolume(volumeID string) error {
 }
 
 // GetVolume provides a mock function with given fields: volumeID
-func (_m *OpenStackMock) GetVolume(volumeID string) (*volumes.Volume, error) {
+func (_m *OpenStackMock) GetVolume(ctx context.Context, volumeID string) (*volumes.Volume, error) {
 	return &fakeVol1, nil
 }
 
 // DetachVolume provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) DetachVolume(instanceID string, volumeID string) error {
+func (_m *OpenStackMock) DetachVolume(ctx context.Context, instanceID string, volumeID string) error {
 	ret := _m.Called(instanceID, volumeID)
 
 	var r0 error
@@ -139,7 +152,7 @@ func (_m *OpenStackMock) DetachVolume(instanceID string, volumeID string) error 
 }
 
 // GetAttachmentDiskPath provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) GetAttachmentDiskPath(instanceID string, volumeID string) (string, error) {
+func (_m *OpenStackMock) GetAttachmentDiskPath(ctx context.Context, instanceID string, volumeID string) (string, error) {
 	ret := _m.Called(instanceID, volumeID)
 
 	var r0 string
@@ -160,7 +173,7 @@ func (_m *OpenStackMock) GetAttachmentDiskPath(instanceID string, volumeID strin
 }
 
 // WaitDiskAttached provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) WaitDiskAttached(instanceID string, volumeID string) error {
+func (_m *OpenStackMock) WaitDiskAttached(ctx context.Context, instanceID string, volumeID string) error {
 	ret := _m.Called(instanceID, volumeID)
 
 	var r0 error
@@ -174,7 +187,7 @@ func (_m *OpenStackMock) WaitDiskAttached(instanceID string, volumeID string) er
 }
 
 // WaitVolumeTargetStatus provides a mock function with given fields: volumeID, tStatus
-func (_m *OpenStackMock) WaitVolumeTargetStatus(volumeID string, tStatus []string) error {
+func (_m *OpenStackMock) WaitVolumeTargetStatus(ctx context.Context, volumeID string, tStatus []string) error {
 	ret := _m.Called(volumeID, tStatus)
 
 	var r0 error
@@ -188,7 +201,7 @@ func (_m *OpenStackMock) WaitVolumeTargetStatus(volumeID string, tStatus []strin
 }
 
 // WaitDiskDetached provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) error {
+func (_m *OpenStackMock) WaitDiskDetached(ctx context.Context, instanceID string, volumeID string) error {
 	ret := _m.Called(instanceID, volumeID)
 
 	var r0 error
@@ -202,7 +215,7 @@ func (_m *OpenStackMock) WaitDiskDetached(instanceID string, volumeID string) er
 }
 
 // GetVolumesByName provides a mock function with given fields: name
-func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error) {
+func (_m *OpenStackMock) GetVolumesByName(ctx context.Context, name string) ([]volumes.Volume, error) {
 
 	ret := _m.Called(name)
 
@@ -225,8 +238,26 @@ func (_m *OpenStackMock) GetVolumesByName(name string) ([]volumes.Volume, error)
 	return r0, r1
 }
 
+// GetVolumeByName provides a mock function with given fields: name
+func (_m *OpenStackMock) GetVolumeByName(ctx context.Context, name string) (*volumes.Volume, error) {
+	vols, err := _m.GetVolumesByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(vols) == 0 {
+		return nil, errors.ErrNotFound
+	}
+
+	if len(vols) > 1 {
+		return nil, fmt.Errorf("found %d volumes with name %q", len(vols), name)
+	}
+
+	return &vols[0], nil
+}
+
 // ListSnapshots provides a mock function with given fields: limit, offset, filters
-func (_m *OpenStackMock) ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error) {
+func (_m *OpenStackMock) ListSnapshots(ctx context.Context, filters map[string]string) ([]snapshots.Snapshot, string, error) {
 	ret := _m.Called(filters)
 
 	var r0 []snapshots.Snapshot
@@ -258,7 +289,7 @@ func (_m *OpenStackMock) ListSnapshots(filters map[string]string) ([]snapshots.S
 }
 
 // CreateSnapshot provides a mock function with given fields: name, volID, tags
-func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
+func (_m *OpenStackMock) CreateSnapshot(ctx context.Context, name string, volID string, tags map[string]string) (*snapshots.Snapshot, error) {
 	ret := _m.Called(name, volID, tags)
 
 	var r0 *snapshots.Snapshot
@@ -281,7 +312,7 @@ func (_m *OpenStackMock) CreateSnapshot(name string, volID string, tags map[stri
 }
 
 // DeleteSnapshot provides a mock function with given fields: snapID
-func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
+func (_m *OpenStackMock) DeleteSnapshot(ctx context.Context, snapID string) error {
 	ret := _m.Called(snapID)
 
 	var r0 error
@@ -294,7 +325,7 @@ func (_m *OpenStackMock) DeleteSnapshot(snapID string) error {
 	return r0
 }
 
-func (_m *OpenStackMock) ListBackups(filters map[string]string) ([]backups.Backup, error) {
+func (_m *OpenStackMock) ListBackups(ctx context.Context, filters map[string]string) ([]backups.Backup, error) {
 	ret := _m.Called(filters)
 
 	var r0 []backups.Backup
@@ -315,7 +346,7 @@ func (_m *OpenStackMock) ListBackups(filters map[string]string) ([]backups.Backu
 	return r0, r1
 }
 
-func (_m *OpenStackMock) CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
+func (_m *OpenStackMock) CreateBackup(ctx context.Context, name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error) {
 	ret := _m.Called(name, volID, snapshotID, availabilityZone, tags)
 
 	var r0 *backups.Backup
@@ -337,7 +368,7 @@ func (_m *OpenStackMock) CreateBackup(name, volID, snapshotID, availabilityZone 
 	return r0, r1
 }
 
-func (_m *OpenStackMock) DeleteBackup(backupID string) error {
+func (_m *OpenStackMock) DeleteBackup(ctx context.Context, backupID string) error {
 	ret := _m.Called(backupID)
 
 	var r0 error
@@ -351,7 +382,7 @@ func (_m *OpenStackMock) DeleteBackup(backupID string) error {
 }
 
 // ListVolumes provides a mock function without param
-func (_m *OpenStackMock) ListVolumes(limit int, marker string) ([]volumes.Volume, string, error) {
+func (_m *OpenStackMock) ListVolumes(ctx context.Context, limit int, marker string) ([]volumes.Volume, string, error) {
 	ret := _m.Called(limit, marker)
 
 	var r0 []volumes.Volume
@@ -383,7 +414,7 @@ func (_m *OpenStackMock) ListVolumes(limit int, marker string) ([]volumes.Volume
 	return r0, r1, r2
 }
 
-func (_m *OpenStackMock) GetAvailabilityZone() (string, error) {
+func (_m *OpenStackMock) GetAvailabilityZone(ctx context.Context) (string, error) {
 	ret := _m.Called()
 	var r0 string
 	if rf, ok := ret.Get(0).(func() string); ok {
@@ -406,12 +437,12 @@ func (_m *OpenStackMock) GetInstanceID() (string, error) {
 	return "", nil
 }
 
-func (_m *OpenStackMock) GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error) {
+func (_m *OpenStackMock) GetSnapshotByID(ctx context.Context, snapshotID string) (*snapshots.Snapshot, error) {
 
 	return &fakeSnapshot, nil
 }
 
-func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) (string, error) {
+func (_m *OpenStackMock) WaitSnapshotReady(ctx context.Context, snapshotID string) (string, error) {
 	ret := _m.Called(snapshotID)
 
 	var r0 string
@@ -431,12 +462,12 @@ func (_m *OpenStackMock) WaitSnapshotReady(snapshotID string) (string, error) {
 	return r0, r1
 }
 
-func (_m *OpenStackMock) GetBackupByID(backupID string) (*backups.Backup, error) {
+func (_m *OpenStackMock) GetBackupByID(ctx context.Context, backupID string) (*backups.Backup, error) {
 
 	return &fakeBackup, nil
 }
 
-func (_m *OpenStackMock) WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
+func (_m *OpenStackMock) WaitBackupReady(ctx context.Context, backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error) {
 	ret := _m.Called(backupID)
 
 	var r0 string
@@ -464,12 +495,12 @@ func (_m *OpenStackMock) BackupsAreEnabled() (bool, error) {
 	return true, nil
 }
 
-func (_m *OpenStackMock) GetInstanceByID(instanceID string) (*servers.Server, error) {
+func (_m *OpenStackMock) GetInstanceByID(ctx context.Context, instanceID string) (*servers.Server, error) {
 	return nil, nil
 }
 
 // ExpandVolume provides a mock function with given fields: instanceID, volumeID
-func (_m *OpenStackMock) ExpandVolume(volumeID string, status string, size int) error {
+func (_m *OpenStackMock) ExpandVolume(ctx context.Context, volumeID string, status string, size int) error {
 	ret := _m.Called(volumeID, status, size)
 
 	var r0 error
@@ -491,4 +522,9 @@ func (_m *OpenStackMock) GetMetadataOpts() metadata.Opts {
 // GetBlockStorageOpts provides a mock function to return BlockStorageOpts
 func (_m *OpenStackMock) GetBlockStorageOpts() BlockStorageOpts {
 	return BlockStorageOpts{}
+}
+
+// ResolveVolumeListToUUIDs provides a mock function to return volume UUIDs
+func (_m *OpenStackMock) ResolveVolumeListToUUIDs(ctx context.Context, v string) (string, error) {
+	return v, nil
 }

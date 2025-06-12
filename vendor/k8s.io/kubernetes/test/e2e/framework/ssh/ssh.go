@@ -66,8 +66,11 @@ func GetSigner(provider string) (ssh.Signer, error) {
 	// support.
 	keyfile := ""
 	switch provider {
-	case "gce", "gke", "kubemark":
+	case "gce", "kubemark":
 		keyfile = os.Getenv("GCE_SSH_KEY")
+		if keyfile == "" {
+			keyfile = os.Getenv("GCE_SSH_PRIVATE_KEY_FILE")
+		}
 		if keyfile == "" {
 			keyfile = "google_compute_engine"
 		}

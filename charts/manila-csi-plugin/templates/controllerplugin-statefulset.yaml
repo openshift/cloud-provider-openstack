@@ -2,6 +2,7 @@ kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: {{ include "openstack-manila-csi.controllerplugin.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "openstack-manila-csi.controllerplugin.labels" .  | nindent 4 }}
 spec:
@@ -15,6 +16,7 @@ spec:
       labels:
         {{- include "openstack-manila-csi.controllerplugin.labels" .  | nindent 8 }}
     spec:
+      securityContext: {{ toYaml .Values.controllerplugin.podSecurityContext | nindent 8 }}
       serviceAccountName: {{ include "openstack-manila-csi.serviceAccountName.controllerplugin" . }}
       containers:
         {{- range .Values.shareProtocols }}
@@ -26,7 +28,7 @@ spec:
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             - "--feature-gates=Topology=true"
             {{- end }}
-            {{- if $.Values.controllerplugin.provisioner.extraCreateMetadata }}
+            {{- if or $.Values.controllerplugin.provisioner.extraCreateMetadata $.Values.csimanila.pvcAnnotations }}
             - "--extra-create-metadata"
             {{- end }}
           env:
@@ -86,10 +88,8 @@ spec:
           command: ["/bin/sh", "-c",
             '/bin/manila-csi-plugin
             -v={{ $.Values.logVerbosityLevel }}
-            --nodeid=$(NODE_ID)
             {{- if $.Values.csimanila.topologyAwarenessEnabled }}
             --with-topology
-            --nodeaz={{ $.Values.csimanila.nodeAZ }}
             {{- end }}
             {{- if $.Values.csimanila.runtimeConfig.enabled }}
             --runtime-config-file=/runtimeconfig/runtimeconfig.json
@@ -101,15 +101,14 @@ spec:
             {{- if .compatibilitySettings }}
             --compatibility-settings={{ .compatibilitySettings }}
             {{- end }}
-            --cluster-id="{{ $.Values.csimanila.clusterID }}"'
+            --cluster-id="{{ $.Values.csimanila.clusterID }}"
+            {{- if $.Values.csimanila.pvcAnnotations }}
+            --pvc-annotations
+            {{- end }}'
           ]
           env:
             - name: DRIVER_NAME
               value: {{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}
-            - name: NODE_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: CSI_ENDPOINT
               value: "unix:///var/lib/kubelet/plugins/{{ printf "%s.%s" .protocolSelector $.Values.driverName | lower }}/csi-controllerplugin.sock"
             - name: FWD_CSI_ENDPOINT
@@ -132,6 +131,9 @@ spec:
             - name: {{ .protocolSelector | lower }}-runtime-config-dir
               mountPath: /runtimeconfig
               readOnly: true
+            {{- end }}
+            {{- with $.Values.controllerplugin.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
             {{- end }}
           resources:
 {{ toYaml $.Values.controllerplugin.nodeplugin.resources | indent 12 }}
@@ -156,6 +158,9 @@ spec:
           hostPath:
             path: /var/lib/kubelet/pods
             type: Directory
+        {{- with .Values.controllerplugin.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     {{- if .Values.controllerplugin.affinity }}
       affinity: {{ toYaml .Values.controllerplugin.affinity | nindent 8 }}
     {{- end }}
