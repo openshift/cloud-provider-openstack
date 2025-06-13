@@ -17,7 +17,7 @@ stringData:
     [BlockStorage]
     bs-version=v3
     ignore-volume-az=True
-    
+
     [Global]
     auth-url="https://auth.cloud.openstackcluster.region-default.local/v3"
     username="region-default-username"
@@ -26,7 +26,7 @@ stringData:
     tenant-id="region-default-tenant-id"
     tenant-name="region-default-tenant-name"
     domain-name="Default"
-    
+
     [Global "region-one"]
     auth-url="https://auth.cloud.openstackcluster.region-one.local/v3"
     username="region-one-username"
@@ -35,7 +35,7 @@ stringData:
     tenant-id="region-one-tenant-id"
     tenant-name="region-one-tenant-name"
     domain-name="Default"
-    
+
     [Global "region-two"]
     auth-url="https://auth.cloud.openstackcluster.region-two.local/v3"
     username="region-two-username"
@@ -101,6 +101,8 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-one
   csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-one
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
@@ -127,6 +129,8 @@ parameters:
   csi.storage.k8s.io/node-stage-secret-namespace: kube-system
   csi.storage.k8s.io/provisioner-secret-name: openstack-config-region-two
   csi.storage.k8s.io/provisioner-secret-namespace: kube-system
+  csi.storage.k8s.io/controller-expand-secret-name: openstack-config-region-two
+  csi.storage.k8s.io/controller-expand-secret-namespace: kube-system
 provisioner: cinder.csi.openstack.org
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
@@ -138,7 +142,7 @@ Daemonsets should deploy pods on nodes from proper openstack context. We suppose
 
 Do as follows:
 - Use nodeSelector to match proper nodes labels
-- Add cli argument `--additionnal-topology topology.kubernetes.io/region=region-one`, which should match node labels, to container cinder-csi-plugin
+- Add cli argument `--additional-topology topology.kubernetes.io/region=region-one`, which should match node labels, to container cinder-csi-plugin
 - Add cli argument `--cloud-name="region-one"`, which should match configuration file subsection name, to container cinder-csi-plugin.
 
 ```yaml
@@ -162,13 +166,13 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.3
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.32.0
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-name="region-one"
-        - --additionnal-topology
+        - --additional-topology
         - topology.kubernetes.io/region=region-one
         env:
         - name: CSI_ENDPOINT
@@ -212,13 +216,13 @@ spec:
       - name: liveness-probe
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.3
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.32.0
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
         - --cloud-config=$(CLOUD_CONFIG)
         - --cloud-name="region-two"
-        - --additionnal-topology
+        - --additional-topology
         - topology.kubernetes.io/region=region-two
         env:
         - name: CSI_ENDPOINT
@@ -278,7 +282,7 @@ spec:
         - Topology=true
         ...
       - name: cinder-csi-plugin
-        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.31.3
+        image: docker.io/k8scloudprovider/cinder-csi-plugin:v1.32.0
         args:
         - /bin/cinder-csi-plugin
         - --endpoint=$(CSI_ENDPOINT)
