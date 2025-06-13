@@ -17,6 +17,7 @@ limitations under the License.
 package openstack
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -45,33 +46,35 @@ func AddExtraFlags(fs *pflag.FlagSet) {
 }
 
 type IOpenStack interface {
-	CreateVolume(name string, size int, vtype, availability string, snapshotID string, sourceVolID string, sourceBackupID string, tags map[string]string) (*volumes.Volume, error)
-	DeleteVolume(volumeID string) error
-	AttachVolume(instanceID, volumeID string) (string, error)
-	ListVolumes(limit int, startingToken string) ([]volumes.Volume, string, error)
-	WaitDiskAttached(instanceID string, volumeID string) error
-	DetachVolume(instanceID, volumeID string) error
-	WaitDiskDetached(instanceID string, volumeID string) error
-	WaitVolumeTargetStatus(volumeID string, tStatus []string) error
-	GetAttachmentDiskPath(instanceID, volumeID string) (string, error)
-	GetVolume(volumeID string) (*volumes.Volume, error)
-	GetVolumesByName(name string) ([]volumes.Volume, error)
-	CreateSnapshot(name, volID string, tags map[string]string) (*snapshots.Snapshot, error)
-	ListSnapshots(filters map[string]string) ([]snapshots.Snapshot, string, error)
-	DeleteSnapshot(snapID string) error
-	GetSnapshotByID(snapshotID string) (*snapshots.Snapshot, error)
-	WaitSnapshotReady(snapshotID string) (string, error)
-	CreateBackup(name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error)
-	ListBackups(filters map[string]string) ([]backups.Backup, error)
-	DeleteBackup(backupID string) error
-	GetBackupByID(backupID string) (*backups.Backup, error)
+	CreateVolume(context.Context, *volumes.CreateOpts, volumes.SchedulerHintOptsBuilder) (*volumes.Volume, error)
+	DeleteVolume(ctx context.Context, volumeID string) error
+	AttachVolume(ctx context.Context, instanceID, volumeID string) (string, error)
+	ListVolumes(ctx context.Context, limit int, startingToken string) ([]volumes.Volume, string, error)
+	WaitDiskAttached(ctx context.Context, instanceID string, volumeID string) error
+	DetachVolume(ctx context.Context, instanceID, volumeID string) error
+	WaitDiskDetached(ctx context.Context, instanceID string, volumeID string) error
+	WaitVolumeTargetStatus(ctx context.Context, volumeID string, tStatus []string) error
+	GetAttachmentDiskPath(ctx context.Context, instanceID, volumeID string) (string, error)
+	GetVolume(ctx context.Context, volumeID string) (*volumes.Volume, error)
+	GetVolumesByName(ctx context.Context, name string) ([]volumes.Volume, error)
+	GetVolumeByName(ctx context.Context, name string) (*volumes.Volume, error)
+	CreateSnapshot(ctx context.Context, name, volID string, tags map[string]string) (*snapshots.Snapshot, error)
+	ListSnapshots(ctx context.Context, filters map[string]string) ([]snapshots.Snapshot, string, error)
+	DeleteSnapshot(ctx context.Context, snapID string) error
+	GetSnapshotByID(ctx context.Context, snapshotID string) (*snapshots.Snapshot, error)
+	WaitSnapshotReady(ctx context.Context, snapshotID string) (string, error)
+	CreateBackup(ctx context.Context, name, volID, snapshotID, availabilityZone string, tags map[string]string) (*backups.Backup, error)
+	ListBackups(ctx context.Context, filters map[string]string) ([]backups.Backup, error)
+	DeleteBackup(ctx context.Context, backupID string) error
+	GetBackupByID(ctx context.Context, backupID string) (*backups.Backup, error)
 	BackupsAreEnabled() (bool, error)
-	WaitBackupReady(backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error)
-	GetInstanceByID(instanceID string) (*servers.Server, error)
-	ExpandVolume(volumeID string, status string, size int) error
+	WaitBackupReady(ctx context.Context, backupID string, snapshotSize int, backupMaxDurationSecondsPerGB int) (string, error)
+	GetInstanceByID(ctx context.Context, instanceID string) (*servers.Server, error)
+	ExpandVolume(ctx context.Context, volumeID string, status string, size int) error
 	GetMaxVolLimit() int64
 	GetMetadataOpts() metadata.Opts
 	GetBlockStorageOpts() BlockStorageOpts
+	ResolveVolumeListToUUIDs(ctx context.Context, volumes string) (string, error)
 }
 
 type OpenStack struct {
@@ -144,12 +147,10 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 const defaultMaxVolAttachLimit int64 = 256
 
 var OsInstances map[string]IOpenStack
-var NoopInstances map[string]IOpenStack
 var configFiles = []string{"/etc/cloud.conf"}
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 	OsInstances = make(map[string]IOpenStack)
-	NoopInstances = make(map[string]IOpenStack)
 	metrics.RegisterMetrics("cinder-csi")
 	if httpEndpoint != "" {
 		mux := http.NewServeMux()
@@ -168,7 +169,7 @@ func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 }
 
 // CreateOpenStackProvider creates Openstack Instance with custom Global config param
-func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
+func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
 	// Get config from file
 	cfg, err := GetConfigFromFiles(configFiles)
 	if err != nil {
@@ -177,23 +178,13 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 	}
 	logcfg(cfg)
 	global := cfg.Global[cloudName]
-	if global == nil && !noClient {
+	if global == nil {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 
 	// if no search order given, use default
 	if len(cfg.Metadata.SearchOrder) == 0 {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
-	}
-
-	if noClient {
-		// Init OpenStack
-		NoopInstances[cloudName] = &NoopOpenStack{
-			bsOpts:       cfg.BlockStorage,
-			metadataOpts: cfg.Metadata,
-		}
-
-		return NoopInstances[cloudName], nil
 	}
 
 	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)
@@ -231,25 +222,12 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 }
 
 // GetOpenStackProvider returns Openstack Instance
-func GetOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
-	if noClient {
-		NoopInstance, NoopInstanceDefined := NoopInstances[cloudName]
-		if NoopInstanceDefined {
-			return NoopInstance, nil
-		}
-		NoopInstance, err := CreateOpenStackProvider(cloudName, noClient)
-		if err != nil {
-			return nil, err
-		}
-
-		return NoopInstance, nil
-	}
-
+func GetOpenStackProvider(cloudName string) (IOpenStack, error) {
 	OsInstance, OsInstanceDefined := OsInstances[cloudName]
 	if OsInstanceDefined {
 		return OsInstance, nil
 	}
-	OsInstance, err := CreateOpenStackProvider(cloudName, noClient)
+	OsInstance, err := CreateOpenStackProvider(cloudName)
 	if err != nil {
 		return nil, err
 	}
