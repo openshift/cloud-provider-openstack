@@ -92,3 +92,13 @@ func GetStorageClass(
 		VolumeBindingMode: bindingMode,
 	}
 }
+
+// CopyVolumeAttributesClass constructs a new VolumeAttributesClass instance
+// with a unique name that is based on namespace + suffix
+// using the VolumeAttributesClass passed in as a parameter
+func CopyVolumeAttributesClass(vac *storagev1.VolumeAttributesClass, ns string, suffix string) *storagev1.VolumeAttributesClass {
+	copy := vac.DeepCopy()
+	copy.ObjectMeta.Name = names.SimpleNameGenerator.GenerateName(ns + "-" + suffix)
+	copy.ResourceVersion = ""
+	return copy
+}

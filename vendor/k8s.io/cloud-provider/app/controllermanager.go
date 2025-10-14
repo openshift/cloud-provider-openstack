@@ -18,7 +18,6 @@ package app
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -130,14 +129,6 @@ the cloud specific control loops shipped with Kubernetes.`,
 	logsapi.AddFlags(logOptions, globalFlagSet)
 	globalflag.AddGlobalFlags(globalFlagSet, cmd.Name(), logs.SkipLoggingConfigurationFlags())
 
-	if flag.CommandLine.Lookup("cloud-provider-gce-lb-src-cidrs") != nil {
-		// hoist this flag from the global flagset to preserve the commandline until
-		// the gce cloudprovider is removed.
-		globalflag.Register(namedFlagSets.FlagSet("generic"), "cloud-provider-gce-lb-src-cidrs")
-	}
-	if flag.CommandLine.Lookup("cloud-provider-gce-l7lb-src-cidrs") != nil {
-		globalflag.Register(namedFlagSets.FlagSet("generic"), "cloud-provider-gce-l7lb-src-cidrs")
-	}
 	for _, f := range namedFlagSets.FlagSets {
 		fs.AddFlagSet(f)
 	}
@@ -508,8 +499,7 @@ func CreateControllerContext(s *cloudcontrollerconfig.CompletedConfig, clientBui
 }
 
 // ResyncPeriod returns a function which generates a duration each time it is
-// invoked; this is so that multiple controllers don't get into lock-step and all
-// hammer the apiserver with list requests simultaneously.
+// invoked; this is because that multiple controllers don't get into lock-step.
 func ResyncPeriod(c *cloudcontrollerconfig.CompletedConfig) func() time.Duration {
 	return func() time.Duration {
 		factor := rand.Float64() + 1

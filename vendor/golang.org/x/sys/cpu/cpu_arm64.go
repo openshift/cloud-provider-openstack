@@ -28,6 +28,7 @@ func initOptions() {
 		{Name: "sm3", Feature: &ARM64.HasSM3},
 		{Name: "sm4", Feature: &ARM64.HasSM4},
 		{Name: "sve", Feature: &ARM64.HasSVE},
+		{Name: "sve2", Feature: &ARM64.HasSVE2},
 		{Name: "crc32", Feature: &ARM64.HasCRC32},
 		{Name: "atomics", Feature: &ARM64.HasATOMICS},
 		{Name: "asimdhp", Feature: &ARM64.HasASIMDHP},

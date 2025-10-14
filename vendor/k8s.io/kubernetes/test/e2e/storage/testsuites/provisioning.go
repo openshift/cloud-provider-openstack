@@ -19,6 +19,8 @@ package testsuites
 import (
 	"context"
 	"fmt"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	crdclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"strconv"
 	"strings"
 	"sync"
@@ -70,6 +72,7 @@ type StorageClassTest struct {
 	AllowVolumeExpansion bool
 	NodeSelection        e2epod.NodeSelection
 	MountOptions         []string
+	ReclaimPolicy        *v1.PersistentVolumeReclaimPolicy
 }
 
 type provisioningTestSuite struct {
@@ -296,12 +299,34 @@ func (p *provisioningTestSuite) DefineTests(driver storageframework.TestDriver, 
 		framework.ExpectNoError(err)
 		ginkgo.DeferCleanup(f.DeleteNamespace, valNamespace.Name)
 
-		ginkgo.By("Deploying validator")
 		valManifests := []string{
-			"test/e2e/testing-manifests/storage-csi/any-volume-datasource/crd/populator.storage.k8s.io_volumepopulators.yaml",
 			"test/e2e/testing-manifests/storage-csi/any-volume-datasource/volume-data-source-validator/rbac-data-source-validator.yaml",
 			"test/e2e/testing-manifests/storage-csi/any-volume-datasource/volume-data-source-validator/setup-data-source-validator.yaml",
 		}
+
+		crdManifestPath := "test/e2e/testing-manifests/storage-csi/any-volume-datasource/crd/populator.storage.k8s.io_volumepopulators.yaml"
+		crdItems, err := storageutils.LoadFromManifests(crdManifestPath)
+		framework.ExpectNoError(err, "Failed to load VolumePopulator CRD manifest")
+		gomega.Expect(crdItems).To(gomega.HaveLen(1), "Expected exactly one CRD in manifest")
+
+		crd, ok := crdItems[0].(*apiextensionsv1.CustomResourceDefinition)
+		gomega.Expect(ok).To(gomega.BeTrueBecause("Resource in loaded manifest file is not a CustomResourceDefinition: %s", crdManifestPath))
+
+		config, err := framework.LoadConfig()
+		framework.ExpectNoError(err)
+		apiExtensionClient, err := crdclientset.NewForConfig(config)
+		framework.ExpectNoError(err)
+
+		ginkgo.By(fmt.Sprintf("Checking if %s CRD exists", crd.Name))
+		_, err = apiExtensionClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crd.Name, metav1.GetOptions{})
+		if err != nil && apierrors.IsNotFound(err) {
+			ginkgo.By("VolumePopulator CRD not found, test will create it and remove when done")
+			valManifests = append(valManifests, crdManifestPath)
+		} else if err != nil {
+			framework.ExpectNoError(err, "Error checking for VolumePopulator CRD existence")
+		}
+
+		ginkgo.By("Deploying validator")
 		err = storageutils.CreateFromManifests(ctx, f, valNamespace,
 			func(item interface{}) error { return nil },
 			valManifests...)
@@ -1004,7 +1029,7 @@ func (t StorageClassTest) TestBindingWaitForFirstConsumerMultiPVC(ctx context.Co
 	// Wait for ClaimProvisionTimeout (across all PVCs in parallel) and make sure the phase did not become Bound i.e. the Wait errors out
 	ginkgo.By("checking the claims are in pending state")
 	err = e2epv.WaitForPersistentVolumeClaimsPhase(ctx, v1.ClaimBound, t.Client, namespace, claimNames, 2*time.Second /* Poll */, t.Timeouts.ClaimProvisionShort, true)
-	framework.ExpectError(err)
+	gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("not all in phase Bound")))
 	verifyPVCsPending(ctx, t.Client, createdClaims)
 
 	ginkgo.By("creating a pod referring to the claims")
@@ -1186,7 +1211,7 @@ func StopPodAndDependents(ctx context.Context, c clientset.Interface, timeouts *
 			// As with CSI inline volumes, we use the pod delete timeout here because conceptually
 			// the volume deletion needs to be that fast (whatever "that" is).
 			framework.Logf("Wait up to %v for pod PV %s to be fully deleted", timeouts.PodDelete, pv.Name)
-			framework.ExpectNoError(e2epv.WaitForPersistentVolumeDeleted(ctx, c, pv.Name, 5*time.Second, timeouts.PodDelete))
+			framework.ExpectNoError(e2epv.WaitForPersistentVolumeDeleted(ctx, c, pv.Name, 5*time.Second, timeouts.PVDeleteSlow))
 		}
 	}
 }

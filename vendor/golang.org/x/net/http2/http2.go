@@ -11,8 +11,6 @@
 // requires Go 1.6 or later)
 //
 // See https://http2.github.io/ for more information on HTTP/2.
-//
-// See https://http2.golang.org/ for a test server running this code.
 package http2 // import "golang.org/x/net/http2"
 
 import (
@@ -27,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/http/httpguts"
 )
@@ -35,7 +34,6 @@ var (
 	VerboseLogs    bool
 	logFrameWrites bool
 	logFrameReads  bool
-	inTests        bool
 
 	// Enabling extended CONNECT by causes browsers to attempt to use
 	// WebSockets-over-HTTP/2. This results in problems when the server's websocket
@@ -229,12 +227,6 @@ type stringWriter interface {
 	WriteString(s string) (n int, err error)
 }
 
-// A gate lets two goroutines coordinate their activities.
-type gate chan struct{}
-
-func (g gate) Done() { g <- struct{}{} }
-func (g gate) Wait() { <-g }
-
 // A closeWaiter is like a sync.WaitGroup but only goes 1 to 0 (open to closed).
 type closeWaiter chan struct{}
 
@@ -261,15 +253,13 @@ func (cw closeWaiter) Wait() {
 // idle memory usage with many connections.
 type bufferedWriter struct {
 	_           incomparable
-	group       synctestGroupInterface // immutable
-	conn        net.Conn               // immutable
-	bw          *bufio.Writer          // non-nil when data is buffered
-	byteTimeout time.Duration          // immutable, WriteByteTimeout
+	conn        net.Conn      // immutable
+	bw          *bufio.Writer // non-nil when data is buffered
+	byteTimeout time.Duration // immutable, WriteByteTimeout
 }
 
-func newBufferedWriter(group synctestGroupInterface, conn net.Conn, timeout time.Duration) *bufferedWriter {
+func newBufferedWriter(conn net.Conn, timeout time.Duration) *bufferedWriter {
 	return &bufferedWriter{
-		group:       group,
 		conn:        conn,
 		byteTimeout: timeout,
 	}
@@ -320,24 +310,18 @@ func (w *bufferedWriter) Flush() error {
 type bufferedWriterTimeoutWriter bufferedWriter
 
 func (w *bufferedWriterTimeoutWriter) Write(p []byte) (n int, err error) {
-	return writeWithByteTimeout(w.group, w.conn, w.byteTimeout, p)
+	return writeWithByteTimeout(w.conn, w.byteTimeout, p)
 }
 
 // writeWithByteTimeout writes to conn.
 // If more than timeout passes without any bytes being written to the connection,
 // the write fails.
-func writeWithByteTimeout(group synctestGroupInterface, conn net.Conn, timeout time.Duration, p []byte) (n int, err error) {
+func writeWithByteTimeout(conn net.Conn, timeout time.Duration, p []byte) (n int, err error) {
 	if timeout <= 0 {
 		return conn.Write(p)
 	}
 	for {
-		var now time.Time
-		if group == nil {
-			now = time.Now()
-		} else {
-			now = group.Now()
-		}
-		conn.SetWriteDeadline(now.Add(timeout))
+		conn.SetWriteDeadline(time.Now().Add(timeout))
 		nn, err := conn.Write(p[n:])
 		n += nn
 		if n == len(p) || nn == 0 || !errors.Is(err, os.ErrDeadlineExceeded) {

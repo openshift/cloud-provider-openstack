@@ -73,9 +73,7 @@ func Int64Min(a, b int64) int64 {
 }
 
 // RoundToInt32 rounds floats into integer numbers.
+// Deprecated: use math.Round() and a cast directly.
 func RoundToInt32(a float64) int32 {
-	if a < 0 {
-		return int32(a - 0.5)
-	}
-	return int32(a + 0.5)
+	return int32(math.Round(a))
 }
