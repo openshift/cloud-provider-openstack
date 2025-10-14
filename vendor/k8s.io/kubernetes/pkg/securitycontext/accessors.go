@@ -27,6 +27,7 @@ type PodSecurityContextAccessor interface {
 	HostNetwork() bool
 	HostPID() bool
 	HostIPC() bool
+	HostUsers() *bool
 	SELinuxOptions() *api.SELinuxOptions
 	RunAsUser() *int64
 	RunAsGroup() *int64
@@ -34,6 +35,7 @@ type PodSecurityContextAccessor interface {
 	SeccompProfile() *api.SeccompProfile
 	SupplementalGroups() []int64
 	FSGroup() *int64
+	FSGroupChangePolicy() *api.PodFSGroupChangePolicy
 }
 
 // PodSecurityContextMutator allows reading and writing the values of a PodSecurityContext object
@@ -43,6 +45,7 @@ type PodSecurityContextMutator interface {
 	SetHostNetwork(bool)
 	SetHostPID(bool)
 	SetHostIPC(bool)
+	SetHostUsers(*bool)
 	SetSELinuxOptions(*api.SELinuxOptions)
 	SetRunAsUser(*int64)
 	SetRunAsGroup(*int64)
@@ -50,6 +53,7 @@ type PodSecurityContextMutator interface {
 	SetSeccompProfile(*api.SeccompProfile)
 	SetSupplementalGroups([]int64)
 	SetFSGroup(*int64)
+	SetFSGroupChangePolicy(*api.PodFSGroupChangePolicy)
 
 	// PodSecurityContext returns the current PodSecurityContext object
 	PodSecurityContext() *api.PodSecurityContext
@@ -119,6 +123,19 @@ func (w *podSecurityContextWrapper) SetHostIPC(v bool) {
 	}
 	w.ensurePodSC()
 	w.podSC.HostIPC = v
+}
+func (w *podSecurityContextWrapper) HostUsers() *bool {
+	if w.podSC == nil {
+		return nil
+	}
+	return w.podSC.HostUsers
+}
+func (w *podSecurityContextWrapper) SetHostUsers(v *bool) {
+	if w.podSC == nil && v == nil {
+		return
+	}
+	w.ensurePodSC()
+	w.podSC.HostUsers = v
 }
 func (w *podSecurityContextWrapper) SELinuxOptions() *api.SELinuxOptions {
 	if w.podSC == nil {
@@ -214,6 +231,23 @@ func (w *podSecurityContextWrapper) SetFSGroup(v *int64) {
 	}
 	w.ensurePodSC()
 	w.podSC.FSGroup = v
+}
+
+func (w *podSecurityContextWrapper) FSGroupChangePolicy() *api.PodFSGroupChangePolicy {
+	if w.podSC == nil {
+		return nil
+	}
+
+	return w.podSC.FSGroupChangePolicy
+}
+
+func (w *podSecurityContextWrapper) SetFSGroupChangePolicy(v *api.PodFSGroupChangePolicy) {
+	if w.podSC == nil && v == nil {
+		return
+	}
+
+	w.ensurePodSC()
+	w.podSC.FSGroupChangePolicy = v
 }
 
 // ContainerSecurityContextAccessor allows reading the values of a SecurityContext object

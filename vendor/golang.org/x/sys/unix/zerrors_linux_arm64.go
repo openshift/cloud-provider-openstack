@@ -68,6 +68,7 @@ const (
 	CS8                              = 0x30
 	CSIZE                            = 0x30
 	CSTOPB                           = 0x40
+	DM_MPATH_PROBE_PATHS             = 0xfd12
 	ECCGETLAYOUT                     = 0x81484d11
 	ECCGETSTATS                      = 0x80104d12
 	ECHOCTL                          = 0x200
@@ -89,6 +90,7 @@ const (
 	FICLONE                          = 0x40049409
 	FICLONERANGE                     = 0x4020940d
 	FLUSHO                           = 0x1000
+	FPMR_MAGIC                       = 0x46504d52
 	FPSIMD_MAGIC                     = 0x46508001
 	FS_IOC_ENABLE_VERITY             = 0x40806685
 	FS_IOC_GETFLAGS                  = 0x80086601
@@ -307,6 +309,9 @@ const (
 	SCM_TS_OPT_ID                    = 0x51
 	SCM_TXTIME                       = 0x3d
 	SCM_WIFI_STATUS                  = 0x29
+	SECCOMP_IOCTL_NOTIF_ADDFD        = 0x40182103
+	SECCOMP_IOCTL_NOTIF_ID_VALID     = 0x40082102
+	SECCOMP_IOCTL_NOTIF_SET_FLAGS    = 0x40082104
 	SFD_CLOEXEC                      = 0x80000
 	SFD_NONBLOCK                     = 0x800
 	SIOCATMARK                       = 0x8905
@@ -355,6 +360,7 @@ const (
 	SO_OOBINLINE                     = 0xa
 	SO_PASSCRED                      = 0x10
 	SO_PASSPIDFD                     = 0x4c
+	SO_PASSRIGHTS                    = 0x53
 	SO_PASSSEC                       = 0x22
 	SO_PEEK_OFF                      = 0x2a
 	SO_PEERCRED                      = 0x11
@@ -367,6 +373,7 @@ const (
 	SO_RCVBUFFORCE                   = 0x21
 	SO_RCVLOWAT                      = 0x12
 	SO_RCVMARK                       = 0x4b
+	SO_RCVPRIORITY                   = 0x52
 	SO_RCVTIMEO                      = 0x14
 	SO_RCVTIMEO_NEW                  = 0x42
 	SO_RCVTIMEO_OLD                  = 0x14

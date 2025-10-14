@@ -259,6 +259,7 @@ struct ltchars {
 #include <linux/module.h>
 #include <linux/mount.h>
 #include <linux/netfilter/nfnetlink.h>
+#include <linux/netfilter/nf_tables.h>
 #include <linux/netlink.h>
 #include <linux/net_namespace.h>
 #include <linux/nfc.h>
@@ -274,6 +275,7 @@ struct ltchars {
 #include <linux/sched.h>
 #include <linux/seccomp.h>
 #include <linux/serial.h>
+#include <linux/sock_diag.h>
 #include <linux/sockios.h>
 #include <linux/taskstats.h>
 #include <linux/tipc.h>
@@ -295,24 +297,12 @@ struct ltchars {
 #include <asm/termbits.h>
 #endif
 
-#ifndef MSG_FASTOPEN
-#define MSG_FASTOPEN    0x20000000
-#endif
-
 #ifndef PTRACE_GETREGS
 #define PTRACE_GETREGS	0xc
 #endif
 
 #ifndef PTRACE_SETREGS
 #define PTRACE_SETREGS	0xd
-#endif
-
-#ifndef SOL_NETLINK
-#define SOL_NETLINK	270
-#endif
-
-#ifndef SOL_SMC
-#define SOL_SMC 286
 #endif
 
 #ifdef SOL_BLUETOOTH
@@ -331,10 +321,23 @@ struct ltchars {
 #undef TIPC_WAIT_FOREVER
 #define TIPC_WAIT_FOREVER 0xffffffff
 
-// Copied from linux/l2tp.h
-// Including linux/l2tp.h here causes conflicts between linux/in.h
-// and netinet/in.h included via net/route.h above.
-#define IPPROTO_L2TP		115
+// Copied from linux/netfilter/nf_nat.h
+// Including linux/netfilter/nf_nat.h here causes conflicts between linux/in.h
+// and netinet/in.h.
+#define NF_NAT_RANGE_MAP_IPS			(1 << 0)
+#define NF_NAT_RANGE_PROTO_SPECIFIED		(1 << 1)
+#define NF_NAT_RANGE_PROTO_RANDOM		(1 << 2)
+#define NF_NAT_RANGE_PERSISTENT			(1 << 3)
+#define NF_NAT_RANGE_PROTO_RANDOM_FULLY		(1 << 4)
+#define NF_NAT_RANGE_PROTO_OFFSET		(1 << 5)
+#define NF_NAT_RANGE_NETMAP			(1 << 6)
+#define NF_NAT_RANGE_PROTO_RANDOM_ALL		\
+	(NF_NAT_RANGE_PROTO_RANDOM | NF_NAT_RANGE_PROTO_RANDOM_FULLY)
+#define NF_NAT_RANGE_MASK					\
+	(NF_NAT_RANGE_MAP_IPS | NF_NAT_RANGE_PROTO_SPECIFIED |	\
+	 NF_NAT_RANGE_PROTO_RANDOM | NF_NAT_RANGE_PERSISTENT |	\
+	 NF_NAT_RANGE_PROTO_RANDOM_FULLY | NF_NAT_RANGE_PROTO_OFFSET | \
+	 NF_NAT_RANGE_NETMAP)
 
 // Copied from linux/hid.h.
 // Keep in sync with the size of the referenced fields.
@@ -346,6 +349,9 @@ struct ltchars {
 #define _HIDIOCGRAWPHYS		HIDIOCGRAWPHYS(_HIDIOCGRAWPHYS_LEN)
 #define _HIDIOCGRAWUNIQ		HIDIOCGRAWUNIQ(_HIDIOCGRAWUNIQ_LEN)
 
+// Renamed in v6.16, commit c6d732c38f93 ("net: ethtool: remove duplicate defines for family info")
+#define ETHTOOL_FAMILY_NAME	ETHTOOL_GENL_NAME
+#define ETHTOOL_FAMILY_VERSION	ETHTOOL_GENL_VERSION
 '
 
 includes_NetBSD='
@@ -597,7 +603,7 @@ ccflags="$@"
 		$2 ~ /^KEY_(SPEC|REQKEY_DEFL)_/ ||
 		$2 ~ /^KEYCTL_/ ||
 		$2 ~ /^PERF_/ ||
-		$2 ~ /^SECCOMP_MODE_/ ||
+		$2 ~ /^SECCOMP_/ ||
 		$2 ~ /^SEEK_/ ||
 		$2 ~ /^SCHED_/ ||
 		$2 ~ /^SPLICE_/ ||
@@ -618,6 +624,9 @@ ccflags="$@"
 		$2 ~ /^FSOPT_/ ||
 		$2 ~ /^WDIO[CFS]_/ ||
 		$2 ~ /^NFN/ ||
+		$2 !~ /^NFT_META_IIFTYPE/ &&
+		$2 ~ /^NFT_/ ||
+		$2 ~ /^NF_NAT_/ ||
 		$2 ~ /^XDP_/ ||
 		$2 ~ /^RWF_/ ||
 		$2 ~ /^(HDIO|WIN|SMART)_/ ||

@@ -20,27 +20,30 @@ type ListOptsBuilder interface {
 // by a particular subnet attribute. SortDir sets the direction, and is either
 // `asc' or `desc'. Marker and Limit are used for pagination.
 type ListOpts struct {
-	Name            string `q:"name"`
-	Description     string `q:"description"`
-	EnableDHCP      *bool  `q:"enable_dhcp"`
-	NetworkID       string `q:"network_id"`
-	TenantID        string `q:"tenant_id"`
-	ProjectID       string `q:"project_id"`
-	IPVersion       int    `q:"ip_version"`
-	GatewayIP       string `q:"gateway_ip"`
-	CIDR            string `q:"cidr"`
-	IPv6AddressMode string `q:"ipv6_address_mode"`
-	IPv6RAMode      string `q:"ipv6_ra_mode"`
-	ID              string `q:"id"`
-	SubnetPoolID    string `q:"subnetpool_id"`
-	Limit           int    `q:"limit"`
-	Marker          string `q:"marker"`
-	SortKey         string `q:"sort_key"`
-	SortDir         string `q:"sort_dir"`
-	Tags            string `q:"tags"`
-	TagsAny         string `q:"tags-any"`
-	NotTags         string `q:"not-tags"`
-	NotTagsAny      string `q:"not-tags-any"`
+	Name              string `q:"name"`
+	Description       string `q:"description"`
+	DNSPublishFixedIP *bool  `q:"dns_publish_fixed_ip"`
+	EnableDHCP        *bool  `q:"enable_dhcp"`
+	NetworkID         string `q:"network_id"`
+	TenantID          string `q:"tenant_id"`
+	ProjectID         string `q:"project_id"`
+	IPVersion         int    `q:"ip_version"`
+	GatewayIP         string `q:"gateway_ip"`
+	CIDR              string `q:"cidr"`
+	IPv6AddressMode   string `q:"ipv6_address_mode"`
+	IPv6RAMode        string `q:"ipv6_ra_mode"`
+	ID                string `q:"id"`
+	SubnetPoolID      string `q:"subnetpool_id"`
+	Limit             int    `q:"limit"`
+	Marker            string `q:"marker"`
+	SortKey           string `q:"sort_key"`
+	SortDir           string `q:"sort_dir"`
+	Tags              string `q:"tags"`
+	TagsAny           string `q:"tags-any"`
+	NotTags           string `q:"not-tags"`
+	NotTagsAny        string `q:"not-tags-any"`
+	RevisionNumber    *int   `q:"revision_number"`
+	SegmentID         string `q:"segment_id"`
 }
 
 // ToSubnetListQuery formats a ListOpts into a query string.
@@ -123,6 +126,9 @@ type CreateOpts struct {
 	// DNSNameservers are the nameservers to be set via DHCP.
 	DNSNameservers []string `json:"dns_nameservers,omitempty"`
 
+	// DNSPublishFixedIP will either enable or disable the publication of fixed IPs to the DNS
+	DNSPublishFixedIP *bool `json:"dns_publish_fixed_ip,omitempty"`
+
 	// ServiceTypes are the service types associated with the subnet.
 	ServiceTypes []string `json:"service_types,omitempty"`
 
@@ -142,6 +148,10 @@ type CreateOpts struct {
 	// Prefixlen is used when user creates a subnet from the subnetpool. It will
 	// overwrite the "default_prefixlen" value of the referenced subnetpool.
 	Prefixlen int `json:"prefixlen,omitempty"`
+
+	// SegmentID is a network segment the subnet is associated with. It is
+	// available when segment extension is enabled.
+	SegmentID string `json:"segment_id,omitempty"`
 }
 
 // ToSubnetCreateMap builds a request body from CreateOpts.
@@ -189,14 +199,16 @@ type UpdateOpts struct {
 	// AllocationPools are IP Address pools that will be available for DHCP.
 	AllocationPools []AllocationPool `json:"allocation_pools,omitempty"`
 
-	// GatewayIP sets gateway information for the subnet. Setting to nil will
-	// cause a default gateway to automatically be created. Setting to an empty
-	// string will cause the subnet to be created with no gateway. Setting to
+	// GatewayIP sets gateway information for the subnet. Setting to an empty
+	// string will cause the subnet to not have a gateway. Setting to
 	// an explicit address will set that address as the gateway.
 	GatewayIP *string `json:"gateway_ip,omitempty"`
 
 	// DNSNameservers are the nameservers to be set via DHCP.
 	DNSNameservers *[]string `json:"dns_nameservers,omitempty"`
+
+	// DNSPublishFixedIP will either enable or disable the publication of fixed IPs to the DNS
+	DNSPublishFixedIP *bool `json:"dns_publish_fixed_ip,omitempty"`
 
 	// ServiceTypes are the service types associated with the subnet.
 	ServiceTypes *[]string `json:"service_types,omitempty"`
@@ -211,6 +223,10 @@ type UpdateOpts struct {
 	// will set revision_number=%s. If the revision number does not match, the
 	// update will fail.
 	RevisionNumber *int `json:"-" h:"If-Match"`
+
+	// SegmentID is a network segment the subnet is associated with. It is
+	// available when segment extension is enabled.
+	SegmentID *string `json:"segment_id,omitempty"`
 }
 
 // ToSubnetUpdateMap builds a request body from UpdateOpts.
