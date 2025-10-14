@@ -24,6 +24,7 @@ import (
 	"github.com/onsi/ginkgo/v2"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ type VolumeResource struct {
 	Pvc       *v1.PersistentVolumeClaim
 	Pv        *v1.PersistentVolume
 	Sc        *storagev1.StorageClass
+	Vac       *storagev1beta1.VolumeAttributesClass
 
 	Volume TestVolume
 }
@@ -53,11 +55,19 @@ type VolumeResource struct {
 // CreateVolumeResource constructs a VolumeResource for the current test. It knows how to deal with
 // different test pattern volume types.
 func CreateVolumeResource(ctx context.Context, driver TestDriver, config *PerTestConfig, pattern TestPattern, testVolumeSizeRange e2evolume.SizeRange) *VolumeResource {
-	return CreateVolumeResourceWithAccessModes(ctx, driver, config, pattern, testVolumeSizeRange, driver.GetDriverInfo().RequiredAccessModes)
+	return CreateVolumeResourceWithAccessModes(ctx, driver, config, pattern, testVolumeSizeRange, driver.GetDriverInfo().RequiredAccessModes, nil)
+}
+
+// CreateVolumeResource constructs a VolumeResource for the current test using the specified VAC name.
+func CreateVolumeResourceWithVAC(ctx context.Context, driver TestDriver, config *PerTestConfig, pattern TestPattern, testVolumeSizeRange e2evolume.SizeRange, vacName *string) *VolumeResource {
+	if pattern.VolType != DynamicPV {
+		framework.Failf("Creating volume with VAC only supported on dynamic PV tests")
+	}
+	return CreateVolumeResourceWithAccessModes(ctx, driver, config, pattern, testVolumeSizeRange, driver.GetDriverInfo().RequiredAccessModes, vacName)
 }
 
 // CreateVolumeResourceWithAccessModes constructs a VolumeResource for the current test with the provided access modes.
-func CreateVolumeResourceWithAccessModes(ctx context.Context, driver TestDriver, config *PerTestConfig, pattern TestPattern, testVolumeSizeRange e2evolume.SizeRange, accessModes []v1.PersistentVolumeAccessMode) *VolumeResource {
+func CreateVolumeResourceWithAccessModes(ctx context.Context, driver TestDriver, config *PerTestConfig, pattern TestPattern, testVolumeSizeRange e2evolume.SizeRange, accessModes []v1.PersistentVolumeAccessMode, vacName *string) *VolumeResource {
 	r := VolumeResource{
 		Config:  config,
 		Pattern: pattern,
@@ -107,7 +117,7 @@ func CreateVolumeResourceWithAccessModes(ctx context.Context, driver TestDriver,
 			switch pattern.VolType {
 			case DynamicPV:
 				r.Pv, r.Pvc = createPVCPVFromDynamicProvisionSC(
-					ctx, f, dInfo.Name, claimSize, r.Sc, pattern.VolMode, accessModes)
+					ctx, f, dInfo.Name, claimSize, r.Sc, pattern.VolMode, accessModes, vacName)
 				r.VolSource = storageutils.CreateVolumeSource(r.Pvc.Name, false /* readOnly */)
 			case GenericEphemeralVolume:
 				driverVolumeSizeRange := dDriver.GetDriverInfo().SupportedSizeRange
@@ -212,7 +222,7 @@ func (r *VolumeResource) CleanupResource(ctx context.Context) error {
 				}
 
 				if pv != nil {
-					err = e2epv.WaitForPersistentVolumeDeleted(ctx, f.ClientSet, pv.Name, 5*time.Second, f.Timeouts.PVDelete)
+					err = e2epv.WaitForPersistentVolumeDeleted(ctx, f.ClientSet, pv.Name, 5*time.Second, f.Timeouts.PVDeleteSlow)
 					if err != nil {
 						cleanUpErrs = append(cleanUpErrs, fmt.Errorf(
 							"persistent Volume %v not deleted by dynamic provisioner: %w", pv.Name, err))
@@ -287,17 +297,19 @@ func createPVCPVFromDynamicProvisionSC(
 	sc *storagev1.StorageClass,
 	volMode v1.PersistentVolumeMode,
 	accessModes []v1.PersistentVolumeAccessMode,
+	vacName *string,
 ) (*v1.PersistentVolume, *v1.PersistentVolumeClaim) {
 	cs := f.ClientSet
 	ns := f.Namespace.Name
 
 	ginkgo.By("creating a claim")
 	pvcCfg := e2epv.PersistentVolumeClaimConfig{
-		NamePrefix:       name,
-		ClaimSize:        claimSize,
-		StorageClassName: &(sc.Name),
-		AccessModes:      accessModes,
-		VolumeMode:       &volMode,
+		NamePrefix:                name,
+		ClaimSize:                 claimSize,
+		StorageClassName:          &(sc.Name),
+		VolumeAttributesClassName: vacName,
+		AccessModes:               accessModes,
+		VolumeMode:                &volMode,
 	}
 
 	pvc := e2epv.MakePersistentVolumeClaim(pvcCfg, ns)

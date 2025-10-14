@@ -34,6 +34,9 @@ const (
 	FailedToCreatePodContainer     = "FailedCreatePodContainer"
 	FailedToMakePodDataDirectories = "Failed"
 	NetworkNotReady                = "NetworkNotReady"
+	ResizeDeferred                 = "ResizeDeferred"
+	ResizeInfeasible               = "ResizeInfeasible"
+	ResizeCompleted                = "ResizeCompleted"
 )
 
 // Image event reason list
@@ -59,6 +62,7 @@ const (
 	VolumeResizeFailed                   = "VolumeResizeFailed"
 	VolumeResizeSuccess                  = "VolumeResizeSuccessful"
 	FileSystemResizeFailed               = "FileSystemResizeFailed"
+	VolumePermissionChangeInProgress     = "VolumePermissionChangeInProgress"
 	FileSystemResizeSuccess              = "FileSystemResizeSuccessful"
 	FailedMapVolume                      = "FailedMapVolume"
 	WarnAlreadyMountedVolume             = "AlreadyMountedVolume"
@@ -75,6 +79,8 @@ const (
 	FailedStatusPodSandBox               = "FailedPodSandBoxStatus"
 	FailedMountOnFilesystemMismatch      = "FailedMountOnFilesystemMismatch"
 	FailedPrepareDynamicResources        = "FailedPrepareDynamicResources"
+	PossibleMemoryBackedVolumesOnDisk    = "PossibleMemoryBackedVolumesOnDisk"
+	CgroupV1                             = "CgroupV1"
 )
 
 // Image manager event reason list

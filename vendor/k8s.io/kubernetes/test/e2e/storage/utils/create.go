@@ -62,6 +62,10 @@ func LoadFromManifests(files ...string) ([]interface{}, error) {
 		if err := runtime.DecodeInto(scheme.Codecs.UniversalDecoder(), data, &what); err != nil {
 			return fmt.Errorf("decode TypeMeta: %w", err)
 		}
+		// Ignore empty documents.
+		if what.Kind == "" {
+			return nil
+		}
 
 		factory := factories[what]
 		if factory == nil {
@@ -263,6 +267,7 @@ var factories = map[What]ItemFactory{
 	{"StatefulSet"}:              &statefulSetFactory{},
 	{"Deployment"}:               &deploymentFactory{},
 	{"StorageClass"}:             &storageClassFactory{},
+	{"VolumeAttributesClass"}:    &volumeAttributesClassFactory{},
 	{"CustomResourceDefinition"}: &customResourceDefinitionFactory{},
 }
 
@@ -309,6 +314,8 @@ func patchItemRecursively(f *framework.Framework, driverNamespace *v1.Namespace,
 		// and therefore always renames, we have to do the same here.
 		PatchName(f, &item.Name)
 	case *storagev1.StorageClass:
+		PatchName(f, &item.Name)
+	case *storagev1.VolumeAttributesClass:
 		PatchName(f, &item.Name)
 	case *storagev1.CSIDriver:
 		PatchName(f, &item.Name)
@@ -608,6 +615,27 @@ func (*storageClassFactory) Create(ctx context.Context, f *framework.Framework, 
 	client := f.ClientSet.StorageV1().StorageClasses()
 	if _, err := client.Create(ctx, item, metav1.CreateOptions{}); err != nil {
 		return nil, fmt.Errorf("create StorageClass: %w", err)
+	}
+	return func(ctx context.Context) error {
+		return client.Delete(ctx, item.GetName(), metav1.DeleteOptions{})
+	}, nil
+}
+
+type volumeAttributesClassFactory struct{}
+
+func (f *volumeAttributesClassFactory) New() runtime.Object {
+	return &storagev1.VolumeAttributesClass{}
+}
+
+func (*volumeAttributesClassFactory) Create(ctx context.Context, f *framework.Framework, ns *v1.Namespace, i interface{}) (func(ctx context.Context) error, error) {
+	item, ok := i.(*storagev1.VolumeAttributesClass)
+	if !ok {
+		return nil, errorItemNotSupported
+	}
+
+	client := f.ClientSet.StorageV1().VolumeAttributesClasses()
+	if _, err := client.Create(ctx, item, metav1.CreateOptions{}); err != nil {
+		return nil, fmt.Errorf("create VolumeAttributesClass: %w", err)
 	}
 	return func(ctx context.Context) error {
 		return client.Delete(ctx, item.GetName(), metav1.DeleteOptions{})
