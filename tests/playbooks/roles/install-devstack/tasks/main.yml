@@ -115,3 +115,37 @@
         cmd: |
           set -ex
           sudo -u {{ user }} -H ./stack.sh
+
+    - name: Create volumev3 service type
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          set -ex
+          export OS_CLOUD=devstack-admin
+          if openstack service show volumev3 > /dev/null 2>&1; then
+            echo "Service volumev3 already exists"
+            exit 0
+          fi
+          URL="$(openstack endpoint list --service block-storage -f value -c URL || true)"
+          if [ -z "${URL}" ]; then
+            exit 0
+          fi
+          openstack service create --name cinder volumev3
+          openstack endpoint create --region RegionOne volumev3 public "${URL}"
+
+    # FIXME(stephenfin): We should remove this as soon as [1] merges and we
+    # bump our dependencies to include it.
+    # [1] https://github.com/gophercloud/gophercloud/pull/3435
+    - name: Delete legacy manila endpoint
+      shell:
+        executable: /bin/bash
+        chdir: "{{ workdir }}"
+        cmd: |
+          set -ex
+          export OS_CLOUD=devstack-admin
+
+          # delete legacy manila API endpoints
+          if openstack service show manila > /dev/null 2>&1; then
+            openstack service delete manila
+          fi
