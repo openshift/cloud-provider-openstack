@@ -122,6 +122,7 @@ func (ns *nodeServer) buildVolumeContext(ctx context.Context, volID volumeID, sh
 	accessRight = getAccessRightBasedOnShareAdapter(sa, accessRights, shareOpts)
 	opts := &shareadapters.VolumeContextArgs{
 		Locations: availableExportLocations,
+		Share:     share,
 		Options:   shareOpts,
 	}
 	volumeContext, err = sa.BuildVolumeContext(opts)

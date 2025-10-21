@@ -5,12 +5,6 @@
 .idea
 .DS_Store
 
-# For konflux
-!vendor/github.com/google/gnostic-models/jsonschema/schema.json
-!vendor/github.com/google/gnostic-models/openapiv2/openapi-2.0.json
-!vendor/go.opentelemetry.io/otel/renovate.json
-!vendor/k8s.io/kubernetes/test/e2e/testing-manifests/kubectl/agnhost-primary-service.json
-
 # OSX leaves these everywhere on SMB shares
 ._*
 

@@ -24,10 +24,14 @@ spec:
         k8s-app: openstack-cloud-controller-manager
     spec:
       nodeSelector:
-        node-role.kubernetes.io/control-plane: ""
+        node-role.kubernetes.io/control-plane: "true"
       securityContext:
         runAsUser: 1001
       tolerations:
+      - key: "CriticalAddonsOnly"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
       - key: node.cloudprovider.kubernetes.io/uninitialized
         value: "true"
         effect: NoSchedule
@@ -38,7 +42,7 @@ spec:
       serviceAccountName: cloud-controller-manager
       containers:
         - name: openstack-cloud-controller-manager
-          image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.33.0
+          image: registry.k8s.io/provider-os/openstack-cloud-controller-manager:v1.34.0
           args:
             - /bin/openstack-cloud-controller-manager
             - --v=1

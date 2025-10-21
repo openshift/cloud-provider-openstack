@@ -81,7 +81,7 @@ $(BUILD_CMDS): $(SOURCES)
 test: unit functional
 
 check: work
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v1.63.4 run --timeout=20m ./...
+	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.3.1 run --timeout=20m ./...
 
 unit: work
 	go test -tags=unit $(shell go list ./... | sed -e '/sanity/ { N; d; }' | sed -e '/tests/ {N; d;}') $(TESTARGS)
@@ -166,7 +166,7 @@ build-local-image-%:
 		.
 
 # Build all images locally
-build-local-images: $(addprefix build-image-,$(IMAGE_NAMES))
+build-local-images: $(addprefix build-local-image-,$(IMAGE_NAMES))
 
 # Build a single image for all architectures in ARCHS and push it to REGISTRY
 push-multiarch-image-%:
