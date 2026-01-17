@@ -3,7 +3,7 @@ WORKDIR /go/src/k8s.io/cloud-provider-openstack
 COPY . .
 RUN go build -o openstack-cloud-controller-manager ./cmd/openstack-cloud-controller-manager
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 
 COPY --from=0 /go/src/k8s.io/cloud-provider-openstack/openstack-cloud-controller-manager /usr/bin/
 
