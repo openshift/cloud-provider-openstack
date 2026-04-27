@@ -45,8 +45,8 @@ const (
 	GoroutineResultError   = "error"
 )
 
-// ExtentionPoints is a list of possible values for the extension_point label.
-var ExtentionPoints = []string{
+// ExtensionPoints is a list of possible values for the extension_point label.
+var ExtensionPoints = []string{
 	PreFilter,
 	Filter,
 	PreFilterExtensionAddPod,
@@ -56,11 +56,13 @@ var ExtentionPoints = []string{
 	Score,
 	ScoreExtensionNormalize,
 	PreBind,
+	PreBindPreFlight,
 	Bind,
 	PostBind,
 	Reserve,
 	Unreserve,
 	Permit,
+	Sign,
 }
 
 const (
@@ -73,11 +75,13 @@ const (
 	Score                       = "Score"
 	ScoreExtensionNormalize     = "ScoreExtensionNormalize"
 	PreBind                     = "PreBind"
+	PreBindPreFlight            = "PreBindPreFlight"
 	Bind                        = "Bind"
 	PostBind                    = "PostBind"
 	Reserve                     = "Reserve"
 	Unreserve                   = "Unreserve"
 	Permit                      = "Permit"
+	Sign                        = "Sign"
 )
 
 const (
@@ -90,28 +94,48 @@ const (
 	PodPoppedInFlightEvent = "PodPopped"
 )
 
+// Possible batch attempt results
+const (
+	BatchAttemptNoHint      = "no_hint"
+	BatchAttemptHintUsed    = "hint_used"
+	BatchAttemptHintNotUsed = "hint_not_used"
+)
+
+// Possible batch cache flush reasons
+const (
+	BatchFlushPodFailed       = "pod_failed"
+	BatchFlushPodSkipped      = "pod_skipped"
+	BatchFlushNodeMissing     = "node_missing"
+	BatchFlushNodeNotFull     = "node_not_full"
+	BatchFlushEmptyList       = "empty_list"
+	BatchFlushExpired         = "expired"
+	BatchFlushPodIncompatible = "pod_incompatible"
+	BatchFlushPodNotBatchable = "pod_not_batchable"
+)
+
 // All the histogram based metrics have 1ms as size for the smallest bucket.
 var (
-	scheduleAttempts           *metrics.CounterVec
-	EventHandlingLatency       *metrics.HistogramVec
-	schedulingLatency          *metrics.HistogramVec
-	SchedulingAlgorithmLatency *metrics.Histogram
-	PreemptionVictims          *metrics.Histogram
-	PreemptionAttempts         *metrics.Counter
-	pendingPods                *metrics.GaugeVec
-	InFlightEvents             *metrics.GaugeVec
-	Goroutines                 *metrics.GaugeVec
+	scheduleAttempts             *metrics.CounterVec
+	EventHandlingLatency         *metrics.HistogramVec
+	schedulingLatency            *metrics.HistogramVec
+	SchedulingAlgorithmLatency   *metrics.Histogram
+	PreemptionVictims            *metrics.Histogram
+	PreemptionAttempts           *metrics.Counter
+	pendingPods                  *metrics.GaugeVec
+	InFlightEvents               *metrics.GaugeVec
+	Goroutines                   *metrics.GaugeVec
+	BatchAttemptStats            *metrics.CounterVec
+	BatchCacheFlushed            *metrics.CounterVec
+	GetNodeHintDuration          *metrics.HistogramVec
+	StoreScheduleResultsDuration *metrics.HistogramVec
 
 	PodSchedulingSLIDuration        *metrics.HistogramVec
 	PodSchedulingAttempts           *metrics.Histogram
 	FrameworkExtensionPointDuration *metrics.HistogramVec
 	PluginExecutionDuration         *metrics.HistogramVec
 
-	PermitWaitDuration *metrics.HistogramVec
-	CacheSize          *metrics.GaugeVec
-	// Deprecated: SchedulerCacheSize is deprecated,
-	// and will be removed at v1.34. Please use CacheSize instead.
-	SchedulerCacheSize    *metrics.GaugeVec
+	PermitWaitDuration    *metrics.HistogramVec
+	CacheSize             *metrics.GaugeVec
 	unschedulableReasons  *metrics.GaugeVec
 	PluginEvaluationTotal *metrics.CounterVec
 
@@ -122,6 +146,14 @@ var (
 	// The below two are only available when the async-preemption feature gate is enabled.
 	PreemptionGoroutinesDuration       *metrics.HistogramVec
 	PreemptionGoroutinesExecutionTotal *metrics.CounterVec
+
+	// The below are only available when the SchedulerAsyncAPICalls feature gate is enabled.
+	AsyncAPICallsTotal   *metrics.CounterVec
+	AsyncAPICallDuration *metrics.HistogramVec
+	AsyncAPIPendingCalls *metrics.GaugeVec
+
+	// The below is only available when the DRAExtendedResource feature gate is enabled.
+	ResourceClaimCreatesTotal *metrics.CounterVec
 
 	// metricsList is a list of all metrics that should be registered always, regardless of any feature gate's value.
 	metricsList []metrics.Registerable
@@ -142,6 +174,16 @@ func Register() {
 		}
 		if utilfeature.DefaultFeatureGate.Enabled(features.SchedulerAsyncPreemption) {
 			RegisterMetrics(PreemptionGoroutinesDuration, PreemptionGoroutinesExecutionTotal)
+		}
+		if utilfeature.DefaultFeatureGate.Enabled(features.SchedulerAsyncAPICalls) {
+			RegisterMetrics(
+				AsyncAPICallsTotal,
+				AsyncAPICallDuration,
+				AsyncAPIPendingCalls,
+			)
+		}
+		if utilfeature.DefaultFeatureGate.Enabled(features.DRAExtendedResource) {
+			RegisterMetrics(ResourceClaimCreatesTotal)
 		}
 	})
 }
@@ -219,6 +261,20 @@ func InitMetrics() {
 			Help:           "Number of running goroutines split by the work they do such as binding.",
 			StabilityLevel: metrics.ALPHA,
 		}, []string{"operation"})
+	BatchAttemptStats = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "batch_attempts_total",
+			Help:           "Counts of results when we attempt to use batching.",
+			StabilityLevel: metrics.ALPHA,
+		}, []string{"profile", "result"})
+	BatchCacheFlushed = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "batch_cache_flushed_total",
+			Help:           "Counts of cache flushes by reason.",
+			StabilityLevel: metrics.ALPHA,
+		}, []string{"profile", "reason"})
 
 	PodSchedulingSLIDuration = metrics.NewHistogramVec(
 		&metrics.HistogramOpts{
@@ -294,15 +350,6 @@ func InitMetrics() {
 		},
 		[]string{"result"})
 
-	SchedulerCacheSize = metrics.NewGaugeVec(
-		&metrics.GaugeOpts{
-			Subsystem:         SchedulerSubsystem,
-			Name:              "scheduler_cache_size",
-			Help:              "Number of nodes, pods, and assumed (bound) pods in the scheduler cache.",
-			StabilityLevel:    metrics.ALPHA,
-			DeprecatedVersion: "1.33.0",
-		}, []string{"type"})
-
 	CacheSize = metrics.NewGaugeVec(
 		&metrics.GaugeOpts{
 			Subsystem:      SchedulerSubsystem,
@@ -346,6 +393,66 @@ func InitMetrics() {
 		},
 		[]string{"result"})
 
+	// The below (AsyncAPICallsTotal, AsyncAPICallDuration and AsyncAPIPendingCalls) are only available when the SchedulerAsyncAPICalls feature gate is enabled.
+	AsyncAPICallsTotal = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "async_api_call_execution_total",
+			Help:           "Total number of API calls executed by the async dispatcher.",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"call_type", "result"})
+
+	AsyncAPICallDuration = metrics.NewHistogramVec(
+		&metrics.HistogramOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "async_api_call_execution_duration_seconds",
+			Help:           "Duration in seconds for executing API call in the async dispatcher.",
+			Buckets:        metrics.ExponentialBuckets(0.001, 2, 15),
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"call_type", "result"})
+
+	AsyncAPIPendingCalls = metrics.NewGaugeVec(
+		&metrics.GaugeOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "pending_async_api_calls",
+			Help:           "Number of API calls currently pending in the async queue.",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"call_type"})
+
+	ResourceClaimCreatesTotal = metrics.NewCounterVec(
+		&metrics.CounterOpts{
+			Subsystem:      SchedulerSubsystem,
+			Name:           "resourceclaim_creates_total",
+			Help:           "Number of ResourceClaims creation requests within scheduler",
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"status"})
+
+	GetNodeHintDuration = metrics.NewHistogramVec(
+		&metrics.HistogramOpts{
+			Subsystem: SchedulerSubsystem,
+			Name:      "get_node_hint_duration_seconds",
+			Help:      "Latency for getting a node hint.",
+			// Start with 0.01ms with the last bucket being [~200ms, Inf)
+			Buckets:        metrics.ExponentialBuckets(0.00001, 2, 12),
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"hinted", "profile"})
+
+	StoreScheduleResultsDuration = metrics.NewHistogramVec(
+		&metrics.HistogramOpts{
+			Subsystem: SchedulerSubsystem,
+			Name:      "store_schedule_results_duration_seconds",
+			Help:      "Latency for getting a no.",
+			// Start with 0.01ms with the last bucket being [~200ms, Inf)
+			Buckets:        metrics.ExponentialBuckets(0.00001, 2, 12),
+			StabilityLevel: metrics.ALPHA,
+		},
+		[]string{"profile"})
+
 	metricsList = []metrics.Registerable{
 		scheduleAttempts,
 		schedulingLatency,
@@ -362,9 +469,12 @@ func InitMetrics() {
 		Goroutines,
 		PermitWaitDuration,
 		CacheSize,
-		SchedulerCacheSize,
 		unschedulableReasons,
 		PluginEvaluationTotal,
+		BatchAttemptStats,
+		BatchCacheFlushed,
+		GetNodeHintDuration,
+		StoreScheduleResultsDuration,
 	}
 }
 
