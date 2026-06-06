@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/gophercloud/gophercloud/v2"
 	"github.com/gophercloud/gophercloud/v2/openstack"
@@ -146,9 +147,11 @@ func GetConfigFromFiles(configFilePaths []string) (Config, error) {
 
 const defaultMaxVolAttachLimit int64 = 256
 
-var OsInstances map[string]IOpenStack
-var NoopInstances map[string]IOpenStack
-var configFiles = []string{"/etc/cloud.conf"}
+var (
+	OsInstances   map[string]IOpenStack
+	osInstancesMu sync.Mutex
+	configFiles   = []string{"/etc/cloud.conf"}
+)
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 	OsInstances = make(map[string]IOpenStack)
@@ -222,7 +225,7 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 	}
 
 	// Init OpenStack
-	OsInstances[cloudName] = &OpenStack{
+	osInstance := &OpenStack{
 		compute:      computeclient,
 		blockstorage: blockstorageclient,
 		bsOpts:       cfg.BlockStorage,
@@ -230,34 +233,27 @@ func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error
 		metadataOpts: cfg.Metadata,
 	}
 
-	return OsInstances[cloudName], nil
+	osInstancesMu.Lock()
+	OsInstances[cloudName] = osInstance
+	osInstancesMu.Unlock()
+
+	return osInstance, nil
 }
 
 // GetOpenStackProvider returns Openstack Instance
-func GetOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
-	if noClient {
-		NoopInstance, NoopInstanceDefined := NoopInstances[cloudName]
-		if NoopInstanceDefined {
-			return NoopInstance, nil
-		}
-		NoopInstance, err := CreateOpenStackProvider(cloudName, noClient)
-		if err != nil {
-			return nil, err
-		}
-
-		return NoopInstance, nil
+func GetOpenStackProvider(cloudName string) (IOpenStack, error) {
+	osInstancesMu.Lock()
+	osInstance, ok := OsInstances[cloudName]
+	osInstancesMu.Unlock()
+	if ok {
+		return osInstance, nil
 	}
-
-	OsInstance, OsInstanceDefined := OsInstances[cloudName]
-	if OsInstanceDefined {
-		return OsInstance, nil
-	}
-	OsInstance, err := CreateOpenStackProvider(cloudName, noClient)
+	osInstance, err := CreateOpenStackProvider(cloudName)
 	if err != nil {
 		return nil, err
 	}
 
-	return OsInstance, nil
+	return osInstance, nil
 }
 
 // GetMetadataOpts returns metadataopts
