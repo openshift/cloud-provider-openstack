@@ -25,6 +25,10 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"context"
 )
 
 // NonBlockingGRPCServer defines Non blocking GRPC server interfaces
@@ -87,8 +91,16 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 		klog.Fatalf("Failed to listen: %v", err)
 	}
 
+	// Mitigation for CVE-2026-33186 in grpc according to https://github.com/grpc/grpc-go/security/advisories/GHSA-p77j-4mvh-x3m3
+	pathValidationInterceptor := func (ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if info.FullMethod == "" || info.FullMethod[0] != '/' {
+			return nil, status.Errorf(codes.Unimplemented, "malformed method name")
+		}   
+		return handler(ctx, req)
+	}
+
 	opts := []grpc.ServerOption{
-		grpc.UnaryInterceptor(logGRPC),
+		grpc.ChainUnaryInterceptor(pathValidationInterceptor, logGRPC),
 	}
 	server := grpc.NewServer(opts...)
 	s.server = server
