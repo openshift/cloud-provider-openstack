@@ -13,6 +13,9 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/kms/barbican"
 	"k8s.io/cloud-provider-openstack/pkg/kms/encryption/aescbc"
 	"k8s.io/klog/v2"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -73,7 +76,15 @@ func Run(configFilePath string, socketpath string, sigchan <-chan os.Signal) (er
 		return err
 	}
 
-	gServer := grpc.NewServer()
+	// Mitigation for CVE-2026-33186 in grpc according to https://github.com/grpc/grpc-go/security/advisories/GHSA-p77j-4mvh-x3m3
+	pathValidationInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if info.FullMethod == "" || info.FullMethod[0] != '/' {
+			return nil, status.Errorf(codes.Unimplemented, "malformed method name")
+		}   
+		return handler(ctx, req)
+	}
+
+	gServer := grpc.NewServer(grpc.UnaryInterceptor(pathValidationInterceptor))
 	pb.RegisterKeyManagementServiceServer(gServer, s)
 
 	serverCh := make(chan error, 1)
