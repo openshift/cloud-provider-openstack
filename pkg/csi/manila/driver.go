@@ -34,6 +34,9 @@ import (
 	"k8s.io/cloud-provider-openstack/pkg/csi/manila/options"
 	"k8s.io/cloud-provider-openstack/pkg/version"
 	"k8s.io/klog/v2"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type DriverOpts struct {
@@ -300,7 +303,15 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids *identityServer, cs *
 		klog.Fatalf("listen failed for GRPC server: %v", err)
 	}
 
-	server := grpc.NewServer(grpc.UnaryInterceptor(func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Mitigation for CVE-2026-33186 in grpc according to https://github.com/grpc/grpc-go/security/advisories/GHSA-p77j-4mvh-x3m3
+	pathValidationInterceptor := func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+		if info.FullMethod == "" || info.FullMethod[0] != '/' {
+			return nil, status.Errorf(codes.Unimplemented, "malformed method name")
+		}   
+		return handler(ctx, req)
+	}
+
+	server := grpc.NewServer(grpc.ChainUnaryInterceptor(pathValidationInterceptor, func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		callID := atomic.AddUint64(&serverGRPCEndpointCallCounter, 1)
 
 		klog.V(3).Infof("[ID:%d] GRPC call: %s", callID, info.FullMethod)
