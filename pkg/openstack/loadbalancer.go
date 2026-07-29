@@ -1605,6 +1605,11 @@ func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, s
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
+	annotations := service.GetAnnotations()
+	svcConf.lbTags = annotations[ServiceAnnotationLoadBalancerTags]
+	svcConf.listenerTags = annotations[ServiceAnnotationListenerTags]
+	svcConf.poolTags = annotations[ServiceAnnotationPoolTags]
+
 	// Get service node-selector annotations
 	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
 	for key, value := range svcConf.nodeSelectors {
@@ -1888,7 +1893,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	// save address into the annotation
 	lbaas.updateServiceAnnotation(service, ServiceAnnotationLoadBalancerAddress, addr)
 
-	// add LB name to load balancer tags.
+	// Ensure the LB name tag plus any tags from the Service annotation in a single update.
 	if svcConf.supportLBTags {
 		lbTags := withLBNameTag(lbName, svcConf.lbTags)
 		klog.V(4).Infof("Desired load balancer tags: %v (LB name plus annotation %s)", lbTags, ServiceAnnotationLoadBalancerTags)
