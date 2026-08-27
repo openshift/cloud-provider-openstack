@@ -31,7 +31,6 @@ items:
     - watch
     - patch
     - update
-    - delete
   - apiGroups:
     - ""
     resources:
