@@ -23,5 +23,5 @@ spec:
   jobLabel: component
   selector:
     matchLabels:
-      {{- include "occm.labels.matchLabels" . | nindent 6 }}
+      {{- include "common.labels.standard" . | nindent 6 }}
 {{- end }}
