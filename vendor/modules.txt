@@ -552,7 +552,7 @@ golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 ## explicit; go 1.18
 golang.org/x/exp/constraints
 golang.org/x/exp/slices
-# golang.org/x/net v0.35.0
+# golang.org/x/net v0.35.0 => github.com/openshift-sustaining/net v0.35.0-sec.3
 ## explicit; go 1.18
 golang.org/x/net/context
 golang.org/x/net/html
@@ -1636,3 +1636,4 @@ software.sslmate.com/src/go-pkcs12/internal/rc2
 # k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.10
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.30.10
 # google.golang.org/grpc => github.com/openshift-sustaining/grpc-go v1.71.3-sec.1
+# golang.org/x/net => github.com/openshift-sustaining/net v0.35.0-sec.3
