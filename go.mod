@@ -28,18 +28,18 @@ require (
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.31.6
-	k8s.io/apimachinery v0.31.6
-	k8s.io/apiserver v0.31.6
-	k8s.io/client-go v0.31.6
-	k8s.io/cloud-provider v0.31.6
-	k8s.io/component-base v0.31.6
-	k8s.io/klog/v2 v2.130.1
-	k8s.io/kms v0.31.6
-	k8s.io/kubernetes v1.31.6
-	k8s.io/mount-utils v0.31.6
-	k8s.io/utils v0.0.0-20241210054802-24370beab758
-	software.sslmate.com/src/go-pkcs12 v0.5.0
+	k8s.io/api v0.36.0
+	k8s.io/apimachinery v0.36.0
+	k8s.io/apiserver v0.36.0
+	k8s.io/client-go v0.36.0
+	k8s.io/cloud-provider v0.36.0
+	k8s.io/component-base v0.36.0
+	k8s.io/klog/v2 v2.140.0
+	k8s.io/kms v0.36.0
+	k8s.io/kubernetes v1.36.0
+	k8s.io/mount-utils v0.36.0
+	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
+	software.sslmate.com/src/go-pkcs12 v0.7.2
 )
 
 // the below fixes the "go list -m all" execution
