@@ -116,7 +116,11 @@ spec:
             - mountPath: /var/lib/csi/sockets/pluginproxy/
               name: socket-dir
         - name: cinder-csi-plugin
-          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.34.1
+          securityContext:
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          image: registry.k8s.io/provider-os/cinder-csi-plugin:v1.36.0
           args:
             - /bin/cinder-csi-plugin
             - "--endpoint=$(CSI_ENDPOINT)"
