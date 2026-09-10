@@ -94,7 +94,7 @@ main() {
     local disk_name="devstack-${FLAVOR}-ubuntu2404"
     if ! gcloud compute disks describe "${disk_name}" --zone "${GCP_ZONE}" > /dev/null 2>&1;
     then
-      gcloud compute disks create "${disk_name}" \
+      gcloud compute disks create devstack-${FLAVOR} \
         --image-project ubuntu-os-cloud --image-family ubuntu-2404-lts-amd64 \
         --zone "${GCP_ZONE}"
     fi
