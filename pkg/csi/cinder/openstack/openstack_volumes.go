@@ -91,7 +91,7 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 
 	mc := metrics.NewMetricContext("volume", "list")
 	if limit == 0 {
-		page, err := volumes.List(os.blockstorage, nil).AllPages(ctx)
+		page, err := volumes.List(os.blockstorage, nil).AllPages(context.TODO())
 		if err != nil {
 			return nil, "", err
 		}
@@ -100,7 +100,7 @@ func (os *OpenStack) ListVolumes(ctx context.Context, limit int, startingToken s
 	}
 
 	opts := volumes.ListOpts{Limit: limit, Marker: startingToken}
-	err := volumes.List(os.blockstorage, opts).EachPage(ctx, func(_ context.Context, page pagination.Page) (bool, error) {
+	err := volumes.List(os.blockstorage, opts).EachPage(context.TODO(), func(_ context.Context, page pagination.Page) (bool, error) {
 		var err error
 
 		vols, err = volumes.ExtractVolumes(page)

@@ -292,9 +292,10 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		return nil, status.Errorf(codes.Internal, "[NodeGetInfo] unable to retrieve instance id of node %v", err)
 	}
 
+	maxVolume := ns.Cloud.GetMaxVolLimit()
 	nodeInfo := &csi.NodeGetInfoResponse{
 		NodeId:            nodeID,
-		MaxVolumesPerNode: ns.Opts.NodeVolumeAttachLimit,
+		MaxVolumesPerNode: maxVolume,
 	}
 
 	if !ns.Driver.withTopology {
