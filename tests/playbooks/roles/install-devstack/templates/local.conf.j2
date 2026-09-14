@@ -148,16 +148,6 @@ if [ -f /opt/stack/data/venv/bin/activate ]; then
     deactivate
 fi
 
-{% if "nova" in enable_services %}
-[[post-config|$NOVA_CONF]]
-[libvirt]
-# Workaround for nova bug #2119114. Until that bug is resolved, Nova will
-# always timeout when detaching volumes (which affects deletion of PVCs)
-#
-# https://bugs.launchpad.net/nova/+bug/2119114
-device_detach_timeout = 1
-{% endif %}
-
 {% if "glance" in enable_services %}
 [[post-config|$GLANCE_API_CONF]]
 [glance_store]
