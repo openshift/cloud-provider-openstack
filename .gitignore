@@ -154,3 +154,6 @@ zz_generated.openapi.go
 
 # local gopath
 .go
+
+# Openstack credential file
+clouds.yaml
