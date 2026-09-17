@@ -66,7 +66,7 @@ type Driver struct {
 	name         string
 	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
 	endpoint     string
-	clusterID    string
+	cluster      string
 	withTopology bool
 
 	ids *identityServer
@@ -84,19 +84,15 @@ type DriverOpts struct {
 	ClusterID    string
 	Endpoint     string
 	WithTopology bool
-
-	PVCLister v1.PersistentVolumeClaimLister
 }
 
 func NewDriver(o *DriverOpts) *Driver {
-	d := &Driver{
-		name:         driverName,
-		fqVersion:    fmt.Sprintf("%s@%s", Version, version.Version),
-		endpoint:     o.Endpoint,
-		clusterID:    o.ClusterID,
-		withTopology: o.WithTopology,
-		pvcLister:    o.PVCLister,
-	}
+	d := &Driver{}
+	d.name = driverName
+	d.fqVersion = fmt.Sprintf("%s@%s", Version, version.Version)
+	d.endpoint = o.Endpoint
+	d.cluster = o.ClusterID
+	d.withTopology = o.WithTopology
 
 	klog.Info("Driver: ", d.name)
 	klog.Info("Driver version: ", d.fqVersion)

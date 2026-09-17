@@ -35,9 +35,25 @@ import (
 func fakeNodeServer() (*nodeServer, *openstack.OpenStackMock, *mount.MountMock, *metadata.MetadataMock) {
 	d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true})
 
-	osmock := new(openstack.OpenStackMock)
-	openstack.OsInstances = map[string]openstack.IOpenStack{
-		"": osmock,
+// Init Node Server
+func init() {
+	if fakeNs == nil {
+
+		d := NewDriver(&DriverOpts{Endpoint: FakeEndpoint, ClusterID: FakeCluster, WithTopology: true})
+
+		// mock MountMock
+		mmock = new(mount.MountMock)
+		mount.MInstance = mmock
+
+		metamock = new(metadata.MetadataMock)
+		metadata.MetadataService = metamock
+
+		omock = new(openstack.OpenStackMock)
+		openstack.OsInstances = map[string]openstack.IOpenStack{
+			"": omock,
+		}
+
+		fakeNs = NewNodeServer(d, mount.MInstance, metadata.MetadataService, openstack.OsInstances[""], map[string]string{})
 	}
 
 	mmock := new(mount.MountMock)
