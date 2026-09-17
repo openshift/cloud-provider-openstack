@@ -90,6 +90,8 @@ func main() {
 
 	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
 
+	cmd.PersistentFlags().BoolVar(&withTopology, "with-topology", true, "cluster is topology-aware")
+
 	cmd.PersistentFlags().StringSliceVar(&cloudNames, "cloud-name", []string{""}, "Cloud name to instruct CSI driver to read additional OpenStack cloud credentials from the configuration subsections. This option can be specified multiple times to manage multiple OpenStack clouds.")
 	cmd.PersistentFlags().StringToStringVar(&additionalTopologies, "additional-topology", map[string]string{}, "Additional CSI driver topology keys, for example topology.kubernetes.io/region=REGION1. This option can be specified multiple times to add multiple additional topology keys.")
 
@@ -99,7 +101,6 @@ func main() {
 	cmd.PersistentFlags().BoolVar(&provideControllerService, "provide-controller-service", true, "If set to true then the CSI driver does provide the controller service (default: true)")
 	cmd.PersistentFlags().BoolVar(&provideNodeService, "provide-node-service", true, "If set to true then the CSI driver does provide the node service (default: true)")
 	cmd.PersistentFlags().BoolVar(&noClient, "node-service-no-os-client", false, "If set to true then the CSI driver node service will not use the OpenStack client (default: false)")
-	cmd.PersistentFlags().MarkDeprecated("node-service-no-os-client", "This flag is deprecated and will be removed in the future. Node service do not use OpenStack credentials anymore.") //nolint:errcheck
 
 	openstack.AddExtraFlags(pflag.CommandLine)
 
@@ -112,7 +113,6 @@ func handle() {
 	d := cinder.NewDriver(&cinder.DriverOpts{
 		Endpoint:     endpoint,
 		ClusterID:    cluster,
-		PVCLister:    csi.GetPVCLister(),
 		WithTopology: withTopology,
 	})
 
@@ -122,7 +122,7 @@ func handle() {
 		var err error
 		clouds := make(map[string]openstack.IOpenStack)
 		for _, cloudName := range cloudNames {
-			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName)
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, false)
 			if err != nil {
 				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
 				return
@@ -133,7 +133,17 @@ func handle() {
 	}
 
 	if provideNodeService {
-		// Initialize mount
+		var err error
+		clouds := make(map[string]openstack.IOpenStack)
+		for _, cloudName := range cloudNames {
+			clouds[cloudName], err = openstack.GetOpenStackProvider(cloudName, noClient)
+			if err != nil {
+				klog.Warningf("Failed to GetOpenStackProvider %s: %v", cloudName, err)
+				return
+			}
+		}
+
+		//Initialize mount
 		mount := mount.GetMountProvider()
 
 		cfg, err := openstack.GetConfigFromFiles(cloudConfig)
