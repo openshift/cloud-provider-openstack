@@ -1339,7 +1339,7 @@ func (lbaas *LbaasV2) checkServiceUpdate(ctx context.Context, service *corev1.Se
 			}
 		}
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
 }
 
 func (lbaas *LbaasV2) checkServiceDelete(ctx context.Context, service *corev1.Service, svcConf *serviceConfig) error {
@@ -1534,14 +1534,13 @@ func (lbaas *LbaasV2) checkService(ctx context.Context, service *corev1.Service,
 	} else {
 		klog.V(4).Infof("Ensure an internal loadbalancer service.")
 	}
-	return lbaas.makeSvcConf(ctx, serviceName, service, svcConf)
+	return lbaas.makeSvcConf(serviceName, service, svcConf)
 }
 
-func (lbaas *LbaasV2) makeSvcConf(ctx context.Context, serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
+func (lbaas *LbaasV2) makeSvcConf(serviceName string, service *corev1.Service, svcConf *serviceConfig) error {
 	svcConf.connLimit = getIntFromServiceAnnotation(service, ServiceAnnotationLoadBalancerConnLimit, -1)
 	svcConf.lbID = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
-	svcConf.poolLbMethod = getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerLbMethod, "")
-	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(ctx, lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
+	svcConf.supportLBTags = openstackutil.IsOctaviaFeatureSupported(lbaas.lb, openstackutil.OctaviaFeatureTags, lbaas.opts.LBProvider)
 
 	// Get service node-selector annotations
 	svcConf.nodeSelectors = getKeyValueFromServiceAnnotation(service, ServiceAnnotationLoadBalancerNodeSelector, lbaas.opts.NodeSelector)
@@ -1628,10 +1627,10 @@ func (lbaas *LbaasV2) checkListenerPorts(service *corev1.Service, curListenerMap
 }
 
 func (lbaas *LbaasV2) updateServiceAnnotation(service *corev1.Service, key, value string) {
-	if service.Annotations == nil {
-		service.Annotations = map[string]string{}
+	if service.ObjectMeta.Annotations == nil {
+		service.ObjectMeta.Annotations = map[string]string{}
 	}
-	service.Annotations[key] = value
+	service.ObjectMeta.Annotations[key] = value
 }
 
 // createLoadBalancerStatus creates the loadbalancer status from the different possible sources
@@ -1699,9 +1698,9 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 			msg := "Loadbalancer %s has a name of %s with incorrect cluster-name component. Renaming it to %s."
 			klog.Infof(msg, loadbalancer.ID, loadbalancer.Name, lbName)
 			lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBRename, msg, loadbalancer.ID, loadbalancer.Name, lbName)
-			loadbalancer, err = renameLoadBalancer(ctx, lbaas.lb, loadbalancer, lbName, clusterName)
+			loadbalancer, err = renameLoadBalancer(lbaas.lb, loadbalancer, lbName, clusterName)
 			if err != nil {
-				return nil, fmt.Errorf("failed to update load balancer %s with an updated name: %w", svcConf.lbID, err)
+				return nil, fmt.Errorf("failed to update load balancer %s with an updated name", svcConf.lbID)
 			}
 		}
 
@@ -1743,7 +1742,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, fmt.Errorf("error getting loadbalancer for Service %s: %v", serviceName, err)
 			}
 			klog.InfoS("Creating loadbalancer", "lbName", lbName, "service", klog.KObj(service))
-			loadbalancer, err = lbaas.createOctaviaLoadBalancer(ctx, lbName, clusterName, service, filteredNodes, svcConf)
+			loadbalancer, err = lbaas.createOctaviaLoadBalancer(lbName, clusterName, service, filteredNodes, svcConf)
 			if err != nil {
 				return nil, fmt.Errorf("error creating loadbalancer %s: %v", lbName, err)
 			}
@@ -1789,7 +1788,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 				return nil, err
 			}
 
-			pool, err := lbaas.ensureOctaviaPool(ctx, loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, filteredNodes, svcConf)
+			pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, lbName), listener, service, port, filteredNodes, svcConf)
 			if err != nil {
 				return nil, err
 			}
@@ -1817,7 +1816,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 		lbaas.eventRecorder.Eventf(service, corev1.EventTypeWarning, eventLBFloatingIPSkipped, msg, serviceName, addr)
 		klog.Infof(msg, serviceName, addr)
 	} else {
-		addr, err = lbaas.ensureFloatingIP(ctx, clusterName, service, loadbalancer, svcConf, isLBOwner)
+		addr, err = lbaas.ensureFloatingIP(clusterName, service, loadbalancer, svcConf, isLBOwner)
 		if err != nil {
 			return nil, err
 		}
@@ -1842,7 +1841,7 @@ func (lbaas *LbaasV2) ensureOctaviaLoadBalancer(ctx context.Context, clusterName
 	status := lbaas.createLoadBalancerStatus(service, svcConf, addr)
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(ctx, clusterName, service, filteredNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return status, fmt.Errorf("failed when reconciling security groups for LB service %v/%v: %v", service.Namespace, service.Name, err)
 		}
@@ -1946,7 +1945,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 			return fmt.Errorf("loadbalancer %s does not contain required listener for port %d and protocol %s", loadbalancer.ID, port.Port, port.Protocol)
 		}
 
-		pool, err := lbaas.ensureOctaviaPool(ctx, loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, filteredNodes, svcConf)
+		pool, err := lbaas.ensureOctaviaPool(loadbalancer.ID, cpoutil.Sprintf255(poolFormat, portIndex, loadbalancer.Name), &listener, service, port, filteredNodes, svcConf)
 		if err != nil {
 			return err
 		}
@@ -1958,7 +1957,7 @@ func (lbaas *LbaasV2) updateOctaviaLoadBalancer(ctx context.Context, clusterName
 	}
 
 	if lbaas.opts.ManageSecurityGroups {
-		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(ctx, clusterName, service, filteredNodes, svcConf)
+		err := lbaas.ensureAndUpdateOctaviaSecurityGroup(clusterName, service, filteredNodes, svcConf)
 		if err != nil {
 			return fmt.Errorf("failed to update Security Group for loadbalancer service %s: %v", serviceName, err)
 		}
