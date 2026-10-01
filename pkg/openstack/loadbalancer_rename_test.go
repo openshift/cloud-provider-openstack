@@ -17,10 +17,9 @@ limitations under the License.
 package openstack
 
 import (
+	"k8s.io/cloud-provider-openstack/pkg/util"
 	"strings"
 	"testing"
-
-	"k8s.io/cloud-provider-openstack/pkg/util"
 
 	"github.com/stretchr/testify/assert"
 )

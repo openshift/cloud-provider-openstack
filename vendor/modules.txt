@@ -301,6 +301,15 @@ github.com/google/pprof/profile
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
+# github.com/gophercloud/gophercloud v1.14.1
+## explicit; go 1.14
+github.com/gophercloud/gophercloud
+github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/l7policies
+github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners
+github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers
+github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors
+github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/pools
+github.com/gophercloud/gophercloud/pagination
 # github.com/gophercloud/gophercloud/v2 v2.12.0
 ## explicit; go 1.25.0
 github.com/gophercloud/gophercloud/v2
@@ -625,7 +634,7 @@ go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc/inte
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
-# go.opentelemetry.io/otel v1.43.0
+# go.opentelemetry.io/otel v1.44.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
@@ -645,8 +654,8 @@ go.opentelemetry.io/otel/semconv/v1.39.0
 go.opentelemetry.io/otel/semconv/v1.39.0/httpconv
 go.opentelemetry.io/otel/semconv/v1.39.0/otelconv
 go.opentelemetry.io/otel/semconv/v1.39.0/rpcconv
-go.opentelemetry.io/otel/semconv/v1.40.0
-go.opentelemetry.io/otel/semconv/v1.40.0/otelconv
+go.opentelemetry.io/otel/semconv/v1.41.0
+go.opentelemetry.io/otel/semconv/v1.41.0/otelconv
 # go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0
 ## explicit; go 1.24.0
 go.opentelemetry.io/otel/exporters/otlp/otlptrace
@@ -661,12 +670,12 @@ go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/observ
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/otlpconfig
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/retry
 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/x
-# go.opentelemetry.io/otel/metric v1.43.0
+# go.opentelemetry.io/otel/metric v1.44.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
 go.opentelemetry.io/otel/metric/noop
-# go.opentelemetry.io/otel/sdk v1.43.0
+# go.opentelemetry.io/otel/sdk v1.44.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/sdk
 go.opentelemetry.io/otel/sdk/instrumentation
@@ -675,7 +684,7 @@ go.opentelemetry.io/otel/sdk/resource
 go.opentelemetry.io/otel/sdk/trace
 go.opentelemetry.io/otel/sdk/trace/internal/env
 go.opentelemetry.io/otel/sdk/trace/internal/observ
-# go.opentelemetry.io/otel/trace v1.43.0
+# go.opentelemetry.io/otel/trace v1.44.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
@@ -712,7 +721,7 @@ go.yaml.in/yaml/v2
 # go.yaml.in/yaml/v3 v3.0.4
 ## explicit; go 1.16
 go.yaml.in/yaml/v3
-# golang.org/x/crypto v0.52.0
+# golang.org/x/crypto v0.50.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
@@ -734,7 +743,7 @@ golang.org/x/exp/slices
 # golang.org/x/mod v0.35.0
 ## explicit; go 1.25.0
 golang.org/x/mod/semver
-# golang.org/x/net v0.55.0
+# golang.org/x/net v0.53.0
 ## explicit; go 1.25.0
 golang.org/x/net/html
 golang.org/x/net/html/atom
@@ -767,10 +776,10 @@ golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
 golang.org/x/sys/windows/svc
 golang.org/x/sys/windows/svc/mgr
-# golang.org/x/term v0.43.0
+# golang.org/x/term v0.42.0
 ## explicit; go 1.25.0
 golang.org/x/term
-# golang.org/x/text v0.37.0
+# golang.org/x/text v0.36.0
 ## explicit; go 1.25.0
 golang.org/x/text/cases
 golang.org/x/text/encoding
