@@ -267,12 +267,6 @@ Although the openstack-cloud-controller-manager was initially implemented with N
   node-selector="env, region=default"
   ```
 
-  See also the Kubernetes [`node.kubernetes.io/exclude-from-external-load-balancers`](https://kubernetes.io/docs/reference/labels-annotations-taints/#node-kubernetes-io-exclude-from-external-load-balancers) label. When this label is set to `true`, the node is excluded from the LoadBalancer pool.
-
-  This label also triggers the Cloud Controller Manager to execute the `EnsureLoadBalancer` method to reconcile the LoadBalancer. If a node was already part of the cluster and its label was later modified after the service's `node-selector` annotation was changed, you can explicitly assign `node.kubernetes.io/exclude-from-external-load-balancers=false` (the `false` value is supported starting from Kubernetes v1.34) label to a node to force the Cloud Controller Manager to reconcile the LoadBalancer pool.
-
-  For example, if a service has `node-selector="env=production"` and a node is labeled `env=development`, updating the node's label to `env=production` will not automatically add it to the LoadBalancer pool. In such cases, setting `node.kubernetes.io/exclude-from-external-load-balancers=false` label to the node ensures that the Cloud Controller Manager re-evaluates the node's eligibility and updates the LoadBalancer configuration accordingly.
-
 * `cascade-delete`
   Determines whether or not to perform cascade deletion of load balancers. Default: true.
 
