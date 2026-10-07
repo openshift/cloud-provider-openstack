@@ -8,8 +8,8 @@ require (
 	github.com/gophercloud/gophercloud/v2 v2.15.0
 	github.com/gophercloud/utils/v2 v2.0.0-20260922174841-b4759ea0529b
 	github.com/hashicorp/go-version v1.9.0
-	github.com/kubernetes-csi/csi-lib-utils v0.25.0
-	github.com/kubernetes-csi/csi-test/v5 v5.6.0
+	github.com/kubernetes-csi/csi-lib-utils v0.24.0
+	github.com/kubernetes-csi/csi-test/v5 v5.5.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/onsi/ginkgo/v2 v2.33.0
@@ -23,7 +23,7 @@ require (
 	golang.org/x/exp v0.0.0-20261007192929-f45ad48fbe92
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.46.0
-	google.golang.org/grpc v1.84.0
+	google.golang.org/grpc v1.82.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
@@ -161,7 +161,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.7.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful v0.69.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.71.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect
 	go.opentelemetry.io/otel v1.46.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.44.0 // indirect
