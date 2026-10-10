@@ -24,7 +24,7 @@ require (
 	golang.org/x/sys v0.45.0
 	golang.org/x/term v0.43.0
 	google.golang.org/grpc v1.79.3
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/godo.v2 v2.0.9
 	gopkg.in/yaml.v2 v2.4.0
