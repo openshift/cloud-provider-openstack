@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -67,6 +66,56 @@ func StringListEqual(list1, list2 []string) bool {
 	}
 
 	return s1.Equal(s2)
+}
+
+// StringToMap converts a string of comma-separated key-values into a map
+func StringToMap(str string) map[string]string {
+	// break up a "key1=val,key2=val2,key3=,key4" string into a list
+	values := strings.Split(strings.TrimSpace(str), ",")
+	keyValues := make(map[string]string, len(values))
+
+	for _, kv := range values {
+		kv := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+
+		k := kv[0]
+		if len(kv) == 1 {
+			if k != "" {
+				// process "key=" or "key"
+				keyValues[k] = ""
+			}
+			continue
+		}
+
+		// process "key=val" or "key=val=foo"
+		keyValues[k] = kv[1]
+	}
+
+	return keyValues
+}
+
+// StringToMap converts a string of comma-separated key-values into a map
+func StringToMap(str string) map[string]string {
+	// break up a "key1=val,key2=val2,key3=,key4" string into a list
+	values := strings.Split(strings.TrimSpace(str), ",")
+	keyValues := make(map[string]string, len(values))
+
+	for _, kv := range values {
+		kv := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+
+		k := kv[0]
+		if len(kv) == 1 {
+			if k != "" {
+				// process "key=" or "key"
+				keyValues[k] = ""
+			}
+			continue
+		}
+
+		// process "key=val" or "key=val=foo"
+		keyValues[k] = kv[1]
+	}
+
+	return keyValues
 }
 
 // StringToMap converts a string of comma-separated key-values into a map
@@ -179,6 +228,41 @@ func SplitTrim(s string, sep rune) []string {
 		return unicode.IsSpace(c) || c == sep
 	}
 	return strings.FieldsFunc(s, f)
+}
+
+// Unique returns slice with duplicates removed, preserving first-seen order.
+func Unique[T comparable](slice []T) []T {
+	seen := make(map[T]struct{}, len(slice))
+	result := make([]T, 0, len(slice))
+	for _, item := range slice {
+		if _, ok := seen[item]; !ok {
+			seen[item] = struct{}{}
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
+// Merge appends the items of src that are not already in dest, preserving
+// order. It returns the merged slice and true if any item was added.
+func Merge[T comparable](dest, src []T) ([]T, bool) {
+	existing := make(map[T]struct{}, len(dest))
+	for _, item := range dest {
+		existing[item] = struct{}{}
+	}
+
+	merged := false
+	result := make([]T, len(dest), len(dest)+len(src))
+	copy(result, dest)
+
+	for _, item := range src {
+		if _, ok := existing[item]; !ok {
+			existing[item] = struct{}{}
+			result = append(result, item)
+			merged = true
+		}
+	}
+	return result, merged
 }
 
 // UUID converts a string to a valid UUID string.

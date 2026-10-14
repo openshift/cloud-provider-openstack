@@ -18,7 +18,6 @@ package cinder
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"sort"
@@ -86,7 +85,19 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	// Volume Type
 	volType := volParams["type"]
 
-	// Volume AZ
+	var volAvailability string
+	if cs.Driver.withTopology {
+		// First check if volAvailability is already specified, if not get preferred from Topology
+		// Required, incase vol AZ is different from node AZ
+		volAvailability = volParams["availability"]
+		if volAvailability == "" {
+			accessibleTopologyReq := req.GetAccessibilityRequirements()
+			// Check from Topology
+			if accessibleTopologyReq != nil {
+				volAvailability = util.GetAZFromTopology(topologyKey, accessibleTopologyReq)
+			}
+		}
+	}
 
 	accessibleTopologyReq := req.GetAccessibilityRequirements()
 	ignoreVolumeAZ := cloud.GetBlockStorageOpts().IgnoreVolumeAZ
@@ -128,9 +139,9 @@ func (cs *controllerServer) CreateVolume(ctx context.Context, req *csi.CreateVol
 	}
 
 	// Volume Create
-	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.clusterID}
+	properties := map[string]string{cinderCSIClusterIDKey: cs.Driver.cluster}
 	// Tag volume with metadata if present: https://github.com/kubernetes-csi/external-provisioner/pull/399
-	for _, mKey := range sharedcsi.RecognizedCSIProvisionerParams {
+	for _, mKey := range []string{"csi.storage.k8s.io/pvc/name", "csi.storage.k8s.io/pvc/namespace", "csi.storage.k8s.io/pv/name"} {
 		if v, ok := req.Parameters[mKey]; ok {
 			properties[mKey] = v
 		}
@@ -460,7 +471,7 @@ func (cs *controllerServer) ListVolumes(ctx context.Context, req *csi.ListVolume
 	}
 
 	var volumeList []volumes.Volume
-	volumeList, token, err = cs.Clouds[cloudName].ListVolumes(ctx, maxEntries, token)
+	volumeList, token, err = cs.Clouds[cloudName].ListVolumes(maxEntries, token)
 	if err != nil {
 		klog.Errorf("Failed to ListVolumes: %v", err)
 		if cpoerrors.IsInvalidError(err) {
