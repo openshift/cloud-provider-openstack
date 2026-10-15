@@ -74,28 +74,25 @@ func (s *fsGroupChangePolicyTestSuite) GetTestSuiteInfo() storageframework.TestS
 	return s.tsInfo
 }
 
-func (s *fsGroupChangePolicyTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
-	if reason := checkVolTypePatterns(pattern, driver, storageframework.NewVolTypeMap(storageframework.CSIInlineVolume, storageframework.GenericEphemeralVolume)); reason != "" {
-		return reason
-	}
+func (s *fsGroupChangePolicyTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
+	skipVolTypePatterns(pattern, driver, storageframework.NewVolTypeMap(storageframework.CSIInlineVolume, storageframework.GenericEphemeralVolume))
 	dInfo := driver.GetDriverInfo()
 	if !dInfo.Capabilities[storageframework.CapFsGroup] {
-		return fmt.Sprintf("Driver %q does not support FsGroup", dInfo.Name)
+		e2eskipper.Skipf("Driver %q does not support FsGroup - skipping", dInfo.Name)
 	}
 
 	if pattern.VolMode == v1.PersistentVolumeBlock {
-		return "Test does not support non-filesystem volume mode"
+		e2eskipper.Skipf("Test does not support non-filesystem volume mode - skipping")
 	}
 
 	if pattern.VolType != storageframework.DynamicPV {
-		return fmt.Sprintf("Suite %q does not support %v", s.tsInfo.Name, pattern.VolType)
+		e2eskipper.Skipf("Suite %q does not support %v", s.tsInfo.Name, pattern.VolType)
 	}
 
 	_, ok := driver.(storageframework.DynamicPVTestDriver)
 	if !ok {
-		return fmt.Sprintf("Driver %s doesn't support %v", dInfo.Name, pattern.VolType)
+		e2eskipper.Skipf("Driver %s doesn't support %v -- skipping", dInfo.Name, pattern.VolType)
 	}
-	return ""
 }
 
 func (s *fsGroupChangePolicyTestSuite) DefineTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
@@ -219,7 +216,8 @@ func (s *fsGroupChangePolicyTestSuite) DefineTests(driver storageframework.TestD
 		},
 	}
 
-	for _, test := range tests {
+	for _, t := range tests {
+		test := t
 		testCaseName := fmt.Sprintf("(%s)[LinuxOnly], %s", test.podfsGroupChangePolicy, test.name)
 		ginkgo.It(testCaseName, func(ctx context.Context) {
 			dInfo := driver.GetDriverInfo()

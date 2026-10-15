@@ -22,7 +22,6 @@ limitations under the License.
 package state
 
 import (
-	v1 "k8s.io/api/resource/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	sets "k8s.io/apimachinery/pkg/util/sets"
 )
@@ -97,11 +96,6 @@ func (in *DriverState) DeepCopyInto(out *DriverState) {
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
-	}
-	if in.SkipNodeOperations != nil {
-		in, out := &in.SkipNodeOperations, &out.SkipNodeOperations
-		*out = make([]v1.SkipNodeOperation, len(*in))
-		copy(*out, *in)
 	}
 	return
 }

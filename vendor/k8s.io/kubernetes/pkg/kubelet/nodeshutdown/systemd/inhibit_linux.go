@@ -39,7 +39,6 @@ type dBusConnector interface {
 	Object(dest string, path dbus.ObjectPath) dbus.BusObject
 	AddMatchSignal(options ...dbus.MatchOption) error
 	Signal(ch chan<- *dbus.Signal)
-	Close() error
 }
 
 // DBusCon has functions that can be used to interact with systemd and logind over dbus.
@@ -47,13 +46,8 @@ type DBusCon struct {
 	SystemBus dBusConnector
 }
 
-// Close closes the underlying DBus connection.
-func (bus *DBusCon) Close() error {
-	return bus.SystemBus.Close()
-}
-
 func NewDBusCon() (*DBusCon, error) {
-	conn, err := dbus.ConnectSystemBus()
+	conn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, err
 	}

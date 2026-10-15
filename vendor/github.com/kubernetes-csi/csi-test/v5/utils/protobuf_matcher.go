@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"go.uber.org/mock/gomock"
+	"github.com/golang/mock/gomock"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 )

@@ -26,11 +26,6 @@ func (s *CpuacctGroup) Name() string {
 	return "cpuacct"
 }
 
-// ID returns the controller ID for cpuacct subsystem.
-func (s *CpuacctGroup) ID() cgroups.Controller {
-	return cgroups.CPU
-}
-
 func (s *CpuacctGroup) Apply(path string, _ *cgroups.Resources, pid int) error {
 	return apply(path, pid)
 }
@@ -110,7 +105,7 @@ func getPercpuUsage(path string) ([]uint64, error) {
 	if err != nil {
 		return percpuUsage, err
 	}
-	for value := range strings.FieldsSeq(data) {
+	for _, value := range strings.Fields(data) {
 		value, err := strconv.ParseUint(value, 10, 64)
 		if err != nil {
 			return percpuUsage, &parseError{Path: path, File: file, Err: err}

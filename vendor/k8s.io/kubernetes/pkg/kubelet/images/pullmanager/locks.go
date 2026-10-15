@@ -21,11 +21,6 @@ import (
 	"sync"
 )
 
-const (
-	minStripedLockSetSize int32 = 1
-	maxStripedLockSetSize int32 = 31
-)
-
 // StripedLockSet allows context locking based on string keys, where each key
 // is mapped to a an index in a size-limited slice of locks.
 type StripedLockSet struct {
@@ -37,10 +32,10 @@ type StripedLockSet struct {
 // used for locking context based on string keys.
 // The size will be normalized to stay in the <1, 31> interval.
 func NewStripedLockSet(size int32) *StripedLockSet {
-	size = min(maxStripedLockSetSize, max(minStripedLockSetSize, size))
+	size = max(size, 1) // make sure we're at least at size 1
 
 	return &StripedLockSet{
-		locks: make([]sync.Mutex, size),
+		locks: make([]sync.Mutex, min(31, size)),
 		size:  size,
 	}
 }

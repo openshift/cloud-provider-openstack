@@ -77,7 +77,7 @@ func ExpandSlice(slice string) (string, error) {
 	if sliceName == "-" {
 		return "/", nil
 	}
-	for component := range strings.SplitSeq(sliceName, "-") {
+	for _, component := range strings.Split(sliceName, "-") {
 		// test--a.slice isn't permitted, nor is -test.slice.
 		if component == "" {
 			return "", fmt.Errorf("invalid slice name: %s", slice)

@@ -29,8 +29,10 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/cache"
 )
 
-func (s *server) GetPluginHandler(ctx context.Context) cache.PluginHandler {
-	logger := klog.FromContext(ctx)
+func (s *server) GetPluginHandler() cache.PluginHandler {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	logger := klog.FromContext(context.TODO())
 	if f, err := os.Create(s.socketDir + "DEPRECATION"); err != nil {
 		logger.Error(err, "Failed to create deprecation file at socket dir", "path", s.socketDir)
 	} else {
@@ -40,26 +42,30 @@ func (s *server) GetPluginHandler(ctx context.Context) cache.PluginHandler {
 	return s
 }
 
-func (s *server) RegisterPlugin(ctx context.Context, pluginName string, endpoint string, versions []string, pluginClientTimeout *time.Duration) error {
+func (s *server) RegisterPlugin(pluginName string, endpoint string, versions []string, pluginClientTimeout *time.Duration) error {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
 	logger := klog.FromContext(ctx)
 	logger.V(2).Info("Registering plugin at endpoint", "plugin", pluginName, "endpoint", endpoint)
 	return s.connectClient(ctx, pluginName, endpoint)
 }
 
-func (s *server) DeRegisterPlugin(ctx context.Context, pluginName, endpoint string) {
-	logger := klog.FromContext(ctx)
+func (s *server) DeRegisterPlugin(pluginName, endpoint string) {
+	logger := klog.FromContext(context.TODO())
 	logger.V(2).Info("Deregistering plugin", "plugin", pluginName, "endpoint", endpoint)
-	// endpoint in DeRegisterPlugin is the socket path
-	client := s.getClient(pluginName, endpoint)
+	client := s.getClient(pluginName)
 	if client != nil {
 		if err := s.disconnectClient(logger, pluginName, client); err != nil {
-			logger.Error(err, "disconnecting client", "plugin", pluginName, "endpoint", endpoint)
+			logger.Error(err, "disconnecting client", "plugin", pluginName, "endpoing", endpoint)
 		}
 	}
 }
 
-func (s *server) ValidatePlugin(ctx context.Context, pluginName string, endpoint string, versions []string) error {
-	logger := klog.FromContext(ctx)
+func (s *server) ValidatePlugin(pluginName string, endpoint string, versions []string) error {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	logger := klog.FromContext(context.TODO())
 	logger.V(2).Info("Got plugin at endpoint with versions", "plugin", pluginName, "endpoint", endpoint, "versions", versions)
 
 	if !s.isVersionCompatibleWithPlugin(versions...) {
@@ -80,13 +86,12 @@ func (s *server) connectClient(ctx context.Context, name string, socketPath stri
 
 	s.registerClient(logger, name, c)
 	if err := c.Connect(ctx); err != nil {
-		// Need to re-connect the client if connection fails
-		s.deregisterClient(logger, name, socketPath)
-		logger.Error(err, "Failed to connect to new client", "resource", name, "socketPath", socketPath)
+		s.deregisterClient(logger, name)
+		logger.Error(err, "Failed to connect to new client", "resource", name)
 		return err
 	}
 
-	logger.V(2).Info("Connected to new client", "resource", name, "socketPath", socketPath)
+	logger.V(2).Info("Connected to new client", "resource", name)
 	go func() {
 		s.runClient(ctx, name, c)
 	}()
@@ -95,46 +100,30 @@ func (s *server) connectClient(ctx context.Context, name string, socketPath stri
 }
 
 func (s *server) disconnectClient(logger klog.Logger, name string, c Client) error {
-	s.deregisterClient(logger, name, c.SocketPath())
+	s.deregisterClient(logger, name)
 	return c.Disconnect(logger)
 }
 func (s *server) registerClient(logger klog.Logger, name string, c Client) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.clients[name] = append(s.clients[name], c)
-	logger.V(2).Info("Registered client", "name", name, "socketPath", c.SocketPath())
+	s.clients[name] = c
+	logger.V(2).Info("Registered client", "name", name)
 }
 
-func (s *server) deregisterClient(logger klog.Logger, name string, socketPath string) {
+func (s *server) deregisterClient(logger klog.Logger, name string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// When a client is deregistered, we will rebuild the clients array, removing the given client.
-	// We intentionally avoid mutating in place.
-	// We only remove the connection when both the client name and socket path matches.
-	// This ensures if there is two connections with same client name, only that specific client is removed.
-	var newClients []Client
-	for _, c := range s.clients[name] {
-		if c.SocketPath() == socketPath {
-			logger.V(2).Info("Deregistered client", "name", name, "socketPath", socketPath)
-			continue
-		}
-		newClients = append(newClients, c)
-	}
-
-	if len(newClients) == 0 {
-		delete(s.clients, name)
-	} else {
-		s.clients[name] = newClients
-	}
+	delete(s.clients, name)
+	logger.V(2).Info("Deregistered client", "name", name)
 }
 
 func (s *server) runClient(ctx context.Context, name string, c Client) {
 	logger := klog.FromContext(ctx)
 	c.Run(ctx)
 
-	c = s.getClient(name, c.SocketPath())
+	c = s.getClient(name)
 	if c == nil {
 		return
 	}
@@ -144,13 +133,8 @@ func (s *server) runClient(ctx context.Context, name string, c Client) {
 	}
 }
 
-func (s *server) getClient(name string, socketPath string) Client {
+func (s *server) getClient(name string) Client {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	for _, c := range s.clients[name] {
-		if c.SocketPath() == socketPath {
-			return c
-		}
-	}
-	return nil
+	return s.clients[name]
 }

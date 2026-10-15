@@ -259,8 +259,6 @@ func (tCtx TContext) AssertConsistently(arg any) gomega.AsyncAssertion {
 	return tCtx.newAsyncAssertion(gomega.NewWithT(assertTestingT{tCtx}).Consistently, arg)
 }
 
-// newAsyncAssertion must be kept identical to the corresponding newAsyncAssertion in
-// the client-go ktesting, minus the support for TContext from that package.
 func (tCtx TContext) newAsyncAssertion(eventuallyOrConsistently func(actualOrCtx any, args ...any) gomega.AsyncAssertion, arg any) gomega.AsyncAssertion {
 	tCtx.Helper()
 	// switch arg := arg.(type) {
@@ -326,8 +324,8 @@ func (tCtx TContext) newAsyncAssertion(eventuallyOrConsistently func(actualOrCtx
 			// by finalize(), then results is still nil.
 			// We need to fill in null values.
 			if len(results) == 0 && t.NumOut() > 0 {
-				for t := range t.Outs() {
-					results = append(results, reflect.New(t).Elem())
+				for i := range t.NumOut() {
+					results = append(results, reflect.New(t.Out(i)).Elem())
 				}
 			}
 			if addErrResult {

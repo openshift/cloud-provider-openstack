@@ -187,18 +187,6 @@ func (m *manager) AddPod(ctx context.Context, pod *v1.Pod) {
 	defer m.workerLock.Unlock()
 
 	logger := klog.FromContext(ctx)
-	// Detach the workers' context from the caller's: the pod worker cancels the
-	// sync context when the pod begins terminating, but probe workers must keep
-	// probing until the container stops so a failing readiness probe can mark
-	// the pod NotReady during graceful termination. Workers are stopped
-	// explicitly via their stop channel (RemovePod/CleanupPods).
-	//
-	// TODO(#140977): This also means nothing cancels an in-flight probe. worker.stop()
-	// only signals stopCh, which is checked between probes, so an exec probe that is
-	// already running keeps executing in a container that is being killed until its
-	// own TimeoutSeconds elapses. The fix is a per-worker cancellable context
-	// cancelled by stop(), not the pod sync context, which cancels too early.
-	ctx = context.WithoutCancel(ctx)
 	key := probeKey{podUID: pod.UID}
 	for _, c := range append(pod.Spec.Containers, getRestartableInitContainers(pod)...) {
 		key.containerName = c.Name
@@ -208,7 +196,7 @@ func (m *manager) AddPod(ctx context.Context, pod *v1.Pod) {
 			if _, ok := m.workers[key]; ok {
 				logger.V(8).Info("Startup probe already exists for container",
 					"pod", klog.KObj(pod), "containerName", c.Name)
-				continue
+				return
 			}
 			w := newWorker(m, startup, pod, c)
 			m.workers[key] = w
@@ -220,7 +208,7 @@ func (m *manager) AddPod(ctx context.Context, pod *v1.Pod) {
 			if _, ok := m.workers[key]; ok {
 				logger.V(8).Info("Readiness probe already exists for container",
 					"pod", klog.KObj(pod), "containerName", c.Name)
-				continue
+				return
 			}
 			w := newWorker(m, readiness, pod, c)
 			m.workers[key] = w
@@ -232,7 +220,7 @@ func (m *manager) AddPod(ctx context.Context, pod *v1.Pod) {
 			if _, ok := m.workers[key]; ok {
 				logger.V(8).Info("Liveness probe already exists for container",
 					"pod", klog.KObj(pod), "containerName", c.Name)
-				continue
+				return
 			}
 			w := newWorker(m, liveness, pod, c)
 			m.workers[key] = w
@@ -284,12 +272,12 @@ func (m *manager) CleanupPods(desiredPods map[types.UID]sets.Empty) {
 	}
 }
 
-func (m *manager) isContainerStarted(logger klog.Logger, pod *v1.Pod, containerStatus *v1.ContainerStatus) bool {
+func (m *manager) isContainerStarted(pod *v1.Pod, containerStatus *v1.ContainerStatus) bool {
 	if containerStatus.State.Running == nil {
 		return false
 	}
 
-	if result, ok := m.startupManager.Get(kubecontainer.ParseContainerID(logger, containerStatus.ContainerID)); ok {
+	if result, ok := m.startupManager.Get(kubecontainer.ParseContainerID(containerStatus.ContainerID)); ok {
 		return result == results.Success
 	}
 
@@ -310,7 +298,7 @@ func (m *manager) isContainerStarted(logger klog.Logger, pod *v1.Pod, containerS
 // setReadyStateOnKubeletRestart sets the ready state of a container to false if it was started
 // before kubelet restarted and has a readiness probe, but the pod is not ready yet.
 // This is to avoid flapping ready status of containers that were ready before kubelet restarted.
-func (m *manager) setReadyStateOnKubeletRestart(logger klog.Logger, ready *bool, pod *v1.Pod, containerStatus *v1.ContainerStatus, containerSpec *v1.Container) {
+func (m *manager) setReadyStateOnKubeletRestart(ready *bool, pod *v1.Pod, containerStatus *v1.ContainerStatus, containerSpec *v1.Container) {
 	var containerStartTime time.Time
 	if containerStatus.State.Running != nil {
 		containerStartTime = containerStatus.State.Running.StartedAt.Time
@@ -322,7 +310,7 @@ func (m *manager) setReadyStateOnKubeletRestart(logger klog.Logger, ready *bool,
 		// - It has been added to the readinessManager, but the probe has not yet started execution.
 		// Therefore, in this case, we also need to set the container status to Ready.
 		if !*ready {
-			if _, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(logger, containerStatus.ContainerID)); !ok {
+			if _, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(containerStatus.ContainerID)); !ok {
 				*ready = true
 			}
 		}
@@ -344,7 +332,7 @@ func (m *manager) setReadyStateOnKubeletRestart(logger klog.Logger, ready *bool,
 func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v1.PodStatus) {
 	logger := klog.FromContext(ctx)
 	for i, c := range podStatus.ContainerStatuses {
-		started := m.isContainerStarted(logger, pod, &podStatus.ContainerStatuses[i])
+		started := m.isContainerStarted(pod, &podStatus.ContainerStatuses[i])
 		podStatus.ContainerStatuses[i].Started = &started
 
 		if !started {
@@ -354,7 +342,7 @@ func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v
 		var ready bool
 		if c.State.Running == nil {
 			ready = false
-		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(logger, c.ContainerID)); ok && result == results.Success {
+		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok && result == results.Success {
 			ready = true
 		} else {
 			// The check whether there is a probe which hasn't run yet.
@@ -379,7 +367,7 @@ func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v
 					}
 				}
 				if containerSpec != nil {
-					m.setReadyStateOnKubeletRestart(logger, &ready, pod, &podStatus.ContainerStatuses[i], containerSpec)
+					m.setReadyStateOnKubeletRestart(&ready, pod, &podStatus.ContainerStatuses[i], containerSpec)
 				}
 			}
 		}
@@ -387,7 +375,7 @@ func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v
 	}
 
 	for i, c := range podStatus.InitContainerStatuses {
-		started := m.isContainerStarted(logger, pod, &podStatus.InitContainerStatuses[i])
+		started := m.isContainerStarted(pod, &podStatus.InitContainerStatuses[i])
 		podStatus.InitContainerStatuses[i].Started = &started
 
 		initContainer, ok := kubeutil.GetContainerByIndex(pod.Spec.InitContainers, podStatus.InitContainerStatuses, i)
@@ -409,7 +397,7 @@ func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v
 		var ready bool
 		if c.State.Running == nil {
 			ready = false
-		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(logger, c.ContainerID)); ok && result == results.Success {
+		} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok && result == results.Success {
 			ready = true
 		} else {
 			// The check whether there is a probe which hasn't run yet.
@@ -424,7 +412,7 @@ func (m *manager) UpdatePodStatus(ctx context.Context, pod *v1.Pod, podStatus *v
 				}
 			}
 			if !utilfeature.DefaultFeatureGate.Enabled(features.ChangeContainerStatusOnKubeletRestart) {
-				m.setReadyStateOnKubeletRestart(logger, &ready, pod, &podStatus.InitContainerStatuses[i], &initContainer)
+				m.setReadyStateOnKubeletRestart(&ready, pod, &podStatus.InitContainerStatuses[i], &initContainer)
 			}
 		}
 		podStatus.InitContainerStatuses[i].Ready = ready

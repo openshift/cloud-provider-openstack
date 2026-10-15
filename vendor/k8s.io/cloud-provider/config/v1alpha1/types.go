@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	nodeconfigv1alpha1 "k8s.io/cloud-provider/controllers/node/config/v1alpha1"
-	nodelifecycleconfigv1alpha1 "k8s.io/cloud-provider/controllers/nodelifecycle/config/v1alpha1"
 	serviceconfigv1alpha1 "k8s.io/cloud-provider/controllers/service/config/v1alpha1"
 	cmconfigv1alpha1 "k8s.io/controller-manager/config/v1alpha1"
 )
@@ -28,7 +27,7 @@ import (
 
 // CloudControllerManagerConfiguration contains elements describing cloud-controller manager.
 type CloudControllerManagerConfiguration struct {
-	metav1.TypeMeta `json:""`
+	metav1.TypeMeta `json:",inline"`
 
 	// Generic holds configuration for a generic controller-manager
 	Generic cmconfigv1alpha1.GenericControllerManagerConfiguration
@@ -38,9 +37,6 @@ type CloudControllerManagerConfiguration struct {
 	// NodeController holds configuration for node controller
 	// related features.
 	NodeController nodeconfigv1alpha1.NodeControllerConfiguration
-	// NodeLifecycleController holds configuration for node lifecycle controller
-	// related features.
-	NodeLifecycleController nodelifecycleconfigv1alpha1.NodeLifecycleControllerConfiguration
 	// ServiceControllerConfiguration holds configuration for ServiceController
 	// related features.
 	ServiceController serviceconfigv1alpha1.ServiceControllerConfiguration
@@ -65,6 +61,8 @@ type KubeCloudSharedConfiguration struct {
 	AllowUntaggedCloud bool
 	// routeReconciliationPeriod is the period for reconciling routes created for Nodes by cloud provider..
 	RouteReconciliationPeriod metav1.Duration
+	// nodeMonitorPeriod is the period for syncing NodeStatus in NodeController.
+	NodeMonitorPeriod metav1.Duration
 	// clusterName is the instance prefix for the cluster.
 	ClusterName string
 	// clusterCIDR is CIDR Range for Pods in cluster.
