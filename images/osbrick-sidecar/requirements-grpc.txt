@@ -1,0 +1,15 @@
+# gRPC dependencies for the OpenShift build.
+#
+# TODO: these are currently installed from PyPI during the image
+# build. For production images they should come from a hermetic
+# source (e.g. cachito/Cachi2 pre-fetched sources or RPMs).
+#
+# os-brick and its transitive dependencies (oslo.*, ceph bindings,
+# etc.) are installed as RPMs from the RHOSP repo instead of pip.
+# Only the gRPC stack, which has no RPM equivalent, is installed
+# via pip.
+
+# Core gRPC dependencies. All three must be the same version.
+grpcio==1.84.0
+grpcio-health-checking==1.84.0
+protobuf==7.36.2
