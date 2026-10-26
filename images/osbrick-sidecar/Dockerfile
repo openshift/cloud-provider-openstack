@@ -36,9 +36,7 @@ FROM registry.ci.openshift.org/ocp/5.1:base-rhel10
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Install runtime dependencies for storage operations.
-# TODO: once the RHOSP and RHCEPH repos are configured in the
-# openshift/release CI operator config, uncomment python3-os-brick
-# (which pulls in oslo.*, ceph bindings, etc. as RPM dependencies).
+# OpenShift CI supplies the OpenStack RPM repository in the base image.
 RUN dnf update -y && \
     dnf install -y --setopt=tsflags=nodocs --setopt=install_weak_deps=0 \
     python3 \
@@ -48,7 +46,7 @@ RUN dnf update -y && \
     sg3_utils \
     sysfsutils \
     sudo \
-    # python3-os-brick \
+    python3-os-brick \
     && dnf clean all && rm -rf /var/cache/dnf/*
 
 # Install gRPC wheels from the builder stage. These have no RPM
