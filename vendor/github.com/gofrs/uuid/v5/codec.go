@@ -21,6 +21,8 @@
 
 package uuid
 
+import "fmt"
+
 // FromBytes returns a UUID generated from the raw byte slice input.
 // It will return an error if the slice isn't 16 bytes long.
 func FromBytes(input []byte) (UUID, error) {
@@ -71,22 +73,22 @@ func parseBytes(b []byte, u *UUID) error {
 	case 36: // canonical
 	case 34, 38:
 		if b[0] != '{' || b[len(b)-1] != '}' {
-			return ErrInvalidBraces
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
 		}
 		b = b[1 : len(b)-1]
 	case 41, 45:
 		if string(b[:9]) != "urn:uuid:" {
-			return ErrInvalidURNPrefix
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b[:9])
 		}
 		b = b[9:]
 	default:
-		return ErrIncorrectLength
+		return fmt.Errorf("%w %d in string %q", ErrIncorrectLength, len(b), b)
 	}
 
 	// canonical (36 chars with dashes at fixed positions)
 	if len(b) == 36 {
 		if b[8] != '-' || b[13] != '-' || b[18] != '-' || b[23] != '-' {
-			return ErrInvalidDashes
+			return fmt.Errorf("%w %q", ErrIncorrectFormatInString, b)
 		}
 		for i, x := range [16]byte{
 			0, 2, 4, 6,
@@ -196,7 +198,7 @@ func (u UUID) MarshalBinary() ([]byte, error) {
 // It will return an error if the slice isn't 16 bytes long.
 func (u *UUID) UnmarshalBinary(data []byte) error {
 	if len(data) != Size {
-		return ErrIncorrectByteLength
+		return fmt.Errorf("%w, got %d bytes", ErrIncorrectByteLength, len(data))
 	}
 	copy(u[:], data)
 

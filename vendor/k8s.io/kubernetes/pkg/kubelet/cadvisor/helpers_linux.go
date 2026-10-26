@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	cadvisorfs "github.com/google/cadvisor/lib/fs"
+	cadvisorfs "github.com/google/cadvisor/fs"
 )
 
 // imageFsInfoProvider knows how to translate the configured runtime

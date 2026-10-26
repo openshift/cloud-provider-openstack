@@ -19,7 +19,6 @@ package util
 import (
 	"fmt"
 	"strconv"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -49,7 +48,7 @@ var StorageOperationMetric = metrics.NewHistogramVec(
 		Name:           "storage_operation_duration_seconds",
 		Help:           "Storage operation duration",
 		Buckets:        []float64{.1, .25, .5, 1, 2.5, 5, 10, 15, 25, 50, 120, 300, 600},
-		StabilityLevel: metrics.BETA,
+		StabilityLevel: metrics.ALPHA,
 	},
 	[]string{"volume_plugin", "operation_name", "status", "migrated"},
 )
@@ -59,7 +58,7 @@ var storageOperationEndToEndLatencyMetric = metrics.NewHistogramVec(
 		Name:           "volume_operation_total_seconds",
 		Help:           "Storage operation end to end duration in seconds",
 		Buckets:        []float64{.1, .25, .5, 1, 2.5, 5, 10, 15, 25, 50, 120, 300, 600},
-		StabilityLevel: metrics.BETA,
+		StabilityLevel: metrics.ALPHA,
 	},
 	[]string{"plugin_name", "operation_name"},
 )
@@ -75,26 +74,20 @@ var csiOperationsLatencyMetric = metrics.NewHistogramVec(
 	[]string{"driver_name", "method_name", "grpc_status_code", "migrated"},
 )
 
-var registerMetricsOnce sync.Once
+func init() {
+	registerMetrics()
+}
 
-// RegisterMetrics registers the volume operation metrics with the legacy
-// registry. Do not invoke from init() function so that metric feature gates
-// (e.g. NativeHistograms) are applied before these histogram
-// metrics are created. It is safe to call multiple times; registration
-// happens at most once.
-func RegisterMetrics() {
-	registerMetricsOnce.Do(func() {
-		// legacyregistry is the internal k8s wrapper around the prometheus
-		// global registry, used specifically for metric stability enforcement
-		legacyregistry.MustRegister(StorageOperationMetric)
-		legacyregistry.MustRegister(storageOperationEndToEndLatencyMetric)
-		legacyregistry.MustRegister(csiOperationsLatencyMetric)
-	})
+func registerMetrics() {
+	// legacyregistry is the internal k8s wrapper around the prometheus
+	// global registry, used specifically for metric stability enforcement
+	legacyregistry.MustRegister(StorageOperationMetric)
+	legacyregistry.MustRegister(storageOperationEndToEndLatencyMetric)
+	legacyregistry.MustRegister(csiOperationsLatencyMetric)
 }
 
 // OperationCompleteHook returns a hook to call when an operation is completed
 func OperationCompleteHook(plugin, operationName string) func(types.CompleteFuncParam) {
-	RegisterMetrics()
 	requestTime := time.Now()
 	opComplete := func(c types.CompleteFuncParam) {
 		timeTaken := time.Since(requestTime).Seconds()
@@ -139,7 +132,6 @@ func GetFullQualifiedPluginNameForVolume(pluginName string, spec *volume.Spec) s
 // RecordOperationLatencyMetric records the end to end latency for certain operation
 // into metric volume_operation_total_seconds
 func RecordOperationLatencyMetric(plugin, operationName string, secondsTaken float64) {
-	RegisterMetrics()
 	storageOperationEndToEndLatencyMetric.WithLabelValues(plugin, operationName).Observe(secondsTaken)
 }
 
@@ -150,7 +142,6 @@ func RecordCSIOperationLatencyMetrics(driverName string,
 	operationErr error,
 	operationDuration time.Duration,
 	migrated string) {
-	RegisterMetrics()
 	csiOperationsLatencyMetric.WithLabelValues(driverName, operationName, getErrorCode(operationErr), migrated).Observe(operationDuration.Seconds())
 }
 

@@ -1,12 +1,6 @@
-version: "2"
-output:
-  formats:
-    text:
-      path: stdout
-      colors: false
-issues:
-  max-same-issues: 0
-  max-issues-per-linter: 0
+run:
+  concurrency: 2
+  timeout: 10m0s
 linters:
   exclusions:
     generated: lax
@@ -22,9 +16,7 @@ linters:
 formatters:
   enable:
     - gofmt
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+output:
+  formats:
+￼    - format: line-number
+￼      path: stdout

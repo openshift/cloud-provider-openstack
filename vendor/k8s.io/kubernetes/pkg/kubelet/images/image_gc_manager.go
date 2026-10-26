@@ -217,22 +217,22 @@ func NewImageGCManager(runtime container.Runtime, statsProvider StatsProvider, p
 
 func (im *realImageGCManager) Start(ctx context.Context) {
 	logger := klog.FromContext(ctx)
-	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+	go wait.Until(func() {
 		_, err := im.detectImages(ctx, time.Now())
 		if err != nil {
 			logger.Info("Failed to monitor images", "err", err)
 		}
-	}, 5*time.Minute)
+	}, 5*time.Minute, wait.NeverStop)
 
 	// Start a goroutine periodically updates image cache.
-	go wait.UntilWithContext(ctx, func(ctx context.Context) {
+	go wait.Until(func() {
 		images, err := im.runtime.ListImages(ctx)
 		if err != nil {
 			logger.Info("Failed to update image list", "err", err)
 		} else {
 			im.imageCache.set(images)
 		}
-	}, 30*time.Second)
+	}, 30*time.Second, wait.NeverStop)
 
 }
 

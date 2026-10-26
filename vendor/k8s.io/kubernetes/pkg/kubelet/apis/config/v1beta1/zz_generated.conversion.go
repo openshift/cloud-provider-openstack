@@ -254,7 +254,7 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1beta1_CrashLoopBackOffConfig_To_config_CrashLoopBackOffConfig(in *configv1beta1.CrashLoopBackOffConfig, out *config.CrashLoopBackOffConfig, s conversion.Scope) error {
-	*out = *(*config.CrashLoopBackOffConfig)(unsafe.Pointer(in))
+	out.MaxContainerRestartPeriod = (*v1.Duration)(unsafe.Pointer(in.MaxContainerRestartPeriod))
 	return nil
 }
 
@@ -264,7 +264,7 @@ func Convert_v1beta1_CrashLoopBackOffConfig_To_config_CrashLoopBackOffConfig(in 
 }
 
 func autoConvert_config_CrashLoopBackOffConfig_To_v1beta1_CrashLoopBackOffConfig(in *config.CrashLoopBackOffConfig, out *configv1beta1.CrashLoopBackOffConfig, s conversion.Scope) error {
-	*out = *(*configv1beta1.CrashLoopBackOffConfig)(unsafe.Pointer(in))
+	out.MaxContainerRestartPeriod = (*v1.Duration)(unsafe.Pointer(in.MaxContainerRestartPeriod))
 	return nil
 }
 
@@ -340,7 +340,8 @@ func Convert_config_CredentialProviderConfig_To_v1beta1_CredentialProviderConfig
 }
 
 func autoConvert_v1beta1_ExecEnvVar_To_config_ExecEnvVar(in *configv1beta1.ExecEnvVar, out *config.ExecEnvVar, s conversion.Scope) error {
-	*out = *(*config.ExecEnvVar)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Value = in.Value
 	return nil
 }
 
@@ -350,7 +351,8 @@ func Convert_v1beta1_ExecEnvVar_To_config_ExecEnvVar(in *configv1beta1.ExecEnvVa
 }
 
 func autoConvert_config_ExecEnvVar_To_v1beta1_ExecEnvVar(in *config.ExecEnvVar, out *configv1beta1.ExecEnvVar, s conversion.Scope) error {
-	*out = *(*configv1beta1.ExecEnvVar)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Value = in.Value
 	return nil
 }
 
@@ -360,7 +362,9 @@ func Convert_config_ExecEnvVar_To_v1beta1_ExecEnvVar(in *config.ExecEnvVar, out 
 }
 
 func autoConvert_v1beta1_ImagePullCredentials_To_config_ImagePullCredentials(in *configv1beta1.ImagePullCredentials, out *config.ImagePullCredentials, s conversion.Scope) error {
-	*out = *(*config.ImagePullCredentials)(unsafe.Pointer(in))
+	out.KubernetesSecrets = *(*[]config.ImagePullSecret)(unsafe.Pointer(&in.KubernetesSecrets))
+	out.KubernetesServiceAccounts = *(*[]config.ImagePullServiceAccount)(unsafe.Pointer(&in.KubernetesServiceAccounts))
+	out.NodePodsAccessible = in.NodePodsAccessible
 	return nil
 }
 
@@ -370,7 +374,9 @@ func Convert_v1beta1_ImagePullCredentials_To_config_ImagePullCredentials(in *con
 }
 
 func autoConvert_config_ImagePullCredentials_To_v1beta1_ImagePullCredentials(in *config.ImagePullCredentials, out *configv1beta1.ImagePullCredentials, s conversion.Scope) error {
-	*out = *(*configv1beta1.ImagePullCredentials)(unsafe.Pointer(in))
+	out.KubernetesSecrets = *(*[]configv1beta1.ImagePullSecret)(unsafe.Pointer(&in.KubernetesSecrets))
+	out.KubernetesServiceAccounts = *(*[]configv1beta1.ImagePullServiceAccount)(unsafe.Pointer(&in.KubernetesServiceAccounts))
+	out.NodePodsAccessible = in.NodePodsAccessible
 	return nil
 }
 
@@ -400,7 +406,10 @@ func Convert_config_ImagePullIntent_To_v1beta1_ImagePullIntent(in *config.ImageP
 }
 
 func autoConvert_v1beta1_ImagePullSecret_To_config_ImagePullSecret(in *configv1beta1.ImagePullSecret, out *config.ImagePullSecret, s conversion.Scope) error {
-	*out = *(*config.ImagePullSecret)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
+	out.CredentialHash = in.CredentialHash
 	return nil
 }
 
@@ -410,7 +419,10 @@ func Convert_v1beta1_ImagePullSecret_To_config_ImagePullSecret(in *configv1beta1
 }
 
 func autoConvert_config_ImagePullSecret_To_v1beta1_ImagePullSecret(in *config.ImagePullSecret, out *configv1beta1.ImagePullSecret, s conversion.Scope) error {
-	*out = *(*configv1beta1.ImagePullSecret)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
+	out.CredentialHash = in.CredentialHash
 	return nil
 }
 
@@ -420,7 +432,9 @@ func Convert_config_ImagePullSecret_To_v1beta1_ImagePullSecret(in *config.ImageP
 }
 
 func autoConvert_v1beta1_ImagePullServiceAccount_To_config_ImagePullServiceAccount(in *configv1beta1.ImagePullServiceAccount, out *config.ImagePullServiceAccount, s conversion.Scope) error {
-	*out = *(*config.ImagePullServiceAccount)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
 	return nil
 }
 
@@ -430,7 +444,9 @@ func Convert_v1beta1_ImagePullServiceAccount_To_config_ImagePullServiceAccount(i
 }
 
 func autoConvert_config_ImagePullServiceAccount_To_v1beta1_ImagePullServiceAccount(in *config.ImagePullServiceAccount, out *configv1beta1.ImagePullServiceAccount, s conversion.Scope) error {
-	*out = *(*configv1beta1.ImagePullServiceAccount)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
 	return nil
 }
 
@@ -524,7 +540,10 @@ func Convert_config_KubeletAuthentication_To_v1beta1_KubeletAuthentication(in *c
 }
 
 func autoConvert_v1beta1_KubeletAuthorization_To_config_KubeletAuthorization(in *configv1beta1.KubeletAuthorization, out *config.KubeletAuthorization, s conversion.Scope) error {
-	*out = *(*config.KubeletAuthorization)(unsafe.Pointer(in))
+	out.Mode = config.KubeletAuthorizationMode(in.Mode)
+	if err := Convert_v1beta1_KubeletWebhookAuthorization_To_config_KubeletWebhookAuthorization(&in.Webhook, &out.Webhook, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -534,7 +553,10 @@ func Convert_v1beta1_KubeletAuthorization_To_config_KubeletAuthorization(in *con
 }
 
 func autoConvert_config_KubeletAuthorization_To_v1beta1_KubeletAuthorization(in *config.KubeletAuthorization, out *configv1beta1.KubeletAuthorization, s conversion.Scope) error {
-	*out = *(*configv1beta1.KubeletAuthorization)(unsafe.Pointer(in))
+	out.Mode = configv1beta1.KubeletAuthorizationMode(in.Mode)
+	if err := Convert_config_KubeletWebhookAuthorization_To_v1beta1_KubeletWebhookAuthorization(&in.Webhook, &out.Webhook, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -701,7 +723,6 @@ func autoConvert_v1beta1_KubeletConfiguration_To_config_KubeletConfiguration(in 
 	out.KubeReservedCgroup = in.KubeReservedCgroup
 	out.EnforceNodeAllocatable = *(*[]string)(unsafe.Pointer(&in.EnforceNodeAllocatable))
 	out.AllowedUnsafeSysctls = *(*[]string)(unsafe.Pointer(&in.AllowedUnsafeSysctls))
-	out.DefaultPodSysctls = *(*map[string]string)(unsafe.Pointer(&in.DefaultPodSysctls))
 	out.VolumePluginDir = in.VolumePluginDir
 	out.ProviderID = in.ProviderID
 	out.KernelMemcgNotification = in.KernelMemcgNotification
@@ -905,7 +926,6 @@ func autoConvert_config_KubeletConfiguration_To_v1beta1_KubeletConfiguration(in 
 	}
 	out.ConfigMapAndSecretChangeDetectionStrategy = configv1beta1.ResourceChangeDetectionStrategy(in.ConfigMapAndSecretChangeDetectionStrategy)
 	out.AllowedUnsafeSysctls = *(*[]string)(unsafe.Pointer(&in.AllowedUnsafeSysctls))
-	out.DefaultPodSysctls = *(*map[string]string)(unsafe.Pointer(&in.DefaultPodSysctls))
 	out.KernelMemcgNotification = in.KernelMemcgNotification
 	out.SystemReserved = *(*map[string]string)(unsafe.Pointer(&in.SystemReserved))
 	out.KubeReserved = *(*map[string]string)(unsafe.Pointer(&in.KubeReserved))
@@ -988,7 +1008,8 @@ func Convert_config_KubeletWebhookAuthentication_To_v1beta1_KubeletWebhookAuthen
 }
 
 func autoConvert_v1beta1_KubeletWebhookAuthorization_To_config_KubeletWebhookAuthorization(in *configv1beta1.KubeletWebhookAuthorization, out *config.KubeletWebhookAuthorization, s conversion.Scope) error {
-	*out = *(*config.KubeletWebhookAuthorization)(unsafe.Pointer(in))
+	out.CacheAuthorizedTTL = in.CacheAuthorizedTTL
+	out.CacheUnauthorizedTTL = in.CacheUnauthorizedTTL
 	return nil
 }
 
@@ -998,7 +1019,8 @@ func Convert_v1beta1_KubeletWebhookAuthorization_To_config_KubeletWebhookAuthori
 }
 
 func autoConvert_config_KubeletWebhookAuthorization_To_v1beta1_KubeletWebhookAuthorization(in *config.KubeletWebhookAuthorization, out *configv1beta1.KubeletWebhookAuthorization, s conversion.Scope) error {
-	*out = *(*configv1beta1.KubeletWebhookAuthorization)(unsafe.Pointer(in))
+	out.CacheAuthorizedTTL = in.CacheAuthorizedTTL
+	out.CacheUnauthorizedTTL = in.CacheUnauthorizedTTL
 	return nil
 }
 
@@ -1008,7 +1030,7 @@ func Convert_config_KubeletWebhookAuthorization_To_v1beta1_KubeletWebhookAuthori
 }
 
 func autoConvert_v1beta1_KubeletX509Authentication_To_config_KubeletX509Authentication(in *configv1beta1.KubeletX509Authentication, out *config.KubeletX509Authentication, s conversion.Scope) error {
-	*out = *(*config.KubeletX509Authentication)(unsafe.Pointer(in))
+	out.ClientCAFile = in.ClientCAFile
 	return nil
 }
 
@@ -1018,7 +1040,7 @@ func Convert_v1beta1_KubeletX509Authentication_To_config_KubeletX509Authenticati
 }
 
 func autoConvert_config_KubeletX509Authentication_To_v1beta1_KubeletX509Authentication(in *config.KubeletX509Authentication, out *configv1beta1.KubeletX509Authentication, s conversion.Scope) error {
-	*out = *(*configv1beta1.KubeletX509Authentication)(unsafe.Pointer(in))
+	out.ClientCAFile = in.ClientCAFile
 	return nil
 }
 
@@ -1028,7 +1050,8 @@ func Convert_config_KubeletX509Authentication_To_v1beta1_KubeletX509Authenticati
 }
 
 func autoConvert_v1beta1_MemoryReservation_To_config_MemoryReservation(in *configv1beta1.MemoryReservation, out *config.MemoryReservation, s conversion.Scope) error {
-	*out = *(*config.MemoryReservation)(unsafe.Pointer(in))
+	out.NumaNode = in.NumaNode
+	out.Limits = *(*corev1.ResourceList)(unsafe.Pointer(&in.Limits))
 	return nil
 }
 
@@ -1038,7 +1061,8 @@ func Convert_v1beta1_MemoryReservation_To_config_MemoryReservation(in *configv1b
 }
 
 func autoConvert_config_MemoryReservation_To_v1beta1_MemoryReservation(in *config.MemoryReservation, out *configv1beta1.MemoryReservation, s conversion.Scope) error {
-	*out = *(*configv1beta1.MemoryReservation)(unsafe.Pointer(in))
+	out.NumaNode = in.NumaNode
+	out.Limits = *(*corev1.ResourceList)(unsafe.Pointer(&in.Limits))
 	return nil
 }
 
@@ -1048,7 +1072,7 @@ func Convert_config_MemoryReservation_To_v1beta1_MemoryReservation(in *config.Me
 }
 
 func autoConvert_v1beta1_MemorySwapConfiguration_To_config_MemorySwapConfiguration(in *configv1beta1.MemorySwapConfiguration, out *config.MemorySwapConfiguration, s conversion.Scope) error {
-	*out = *(*config.MemorySwapConfiguration)(unsafe.Pointer(in))
+	out.SwapBehavior = in.SwapBehavior
 	return nil
 }
 
@@ -1058,7 +1082,7 @@ func Convert_v1beta1_MemorySwapConfiguration_To_config_MemorySwapConfiguration(i
 }
 
 func autoConvert_config_MemorySwapConfiguration_To_v1beta1_MemorySwapConfiguration(in *config.MemorySwapConfiguration, out *configv1beta1.MemorySwapConfiguration, s conversion.Scope) error {
-	*out = *(*configv1beta1.MemorySwapConfiguration)(unsafe.Pointer(in))
+	out.SwapBehavior = in.SwapBehavior
 	return nil
 }
 
@@ -1088,7 +1112,8 @@ func Convert_config_SerializedNodeConfigSource_To_v1beta1_SerializedNodeConfigSo
 }
 
 func autoConvert_v1beta1_ShutdownGracePeriodByPodPriority_To_config_ShutdownGracePeriodByPodPriority(in *configv1beta1.ShutdownGracePeriodByPodPriority, out *config.ShutdownGracePeriodByPodPriority, s conversion.Scope) error {
-	*out = *(*config.ShutdownGracePeriodByPodPriority)(unsafe.Pointer(in))
+	out.Priority = in.Priority
+	out.ShutdownGracePeriodSeconds = in.ShutdownGracePeriodSeconds
 	return nil
 }
 
@@ -1098,7 +1123,8 @@ func Convert_v1beta1_ShutdownGracePeriodByPodPriority_To_config_ShutdownGracePer
 }
 
 func autoConvert_config_ShutdownGracePeriodByPodPriority_To_v1beta1_ShutdownGracePeriodByPodPriority(in *config.ShutdownGracePeriodByPodPriority, out *configv1beta1.ShutdownGracePeriodByPodPriority, s conversion.Scope) error {
-	*out = *(*configv1beta1.ShutdownGracePeriodByPodPriority)(unsafe.Pointer(in))
+	out.Priority = in.Priority
+	out.ShutdownGracePeriodSeconds = in.ShutdownGracePeriodSeconds
 	return nil
 }
 
@@ -1108,7 +1134,7 @@ func Convert_config_ShutdownGracePeriodByPodPriority_To_v1beta1_ShutdownGracePer
 }
 
 func autoConvert_v1beta1_UserNamespaces_To_config_UserNamespaces(in *configv1beta1.UserNamespaces, out *config.UserNamespaces, s conversion.Scope) error {
-	*out = *(*config.UserNamespaces)(unsafe.Pointer(in))
+	out.IDsPerPod = (*int64)(unsafe.Pointer(in.IDsPerPod))
 	return nil
 }
 
@@ -1118,7 +1144,7 @@ func Convert_v1beta1_UserNamespaces_To_config_UserNamespaces(in *configv1beta1.U
 }
 
 func autoConvert_config_UserNamespaces_To_v1beta1_UserNamespaces(in *config.UserNamespaces, out *configv1beta1.UserNamespaces, s conversion.Scope) error {
-	*out = *(*configv1beta1.UserNamespaces)(unsafe.Pointer(in))
+	out.IDsPerPod = (*int64)(unsafe.Pointer(in.IDsPerPod))
 	return nil
 }
 

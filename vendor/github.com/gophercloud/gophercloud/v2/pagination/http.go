@@ -1,7 +1,6 @@
 package pagination
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -30,9 +29,7 @@ func PageResultFrom(resp *http.Response) (PageResult, error) {
 	}
 
 	if strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		dec := json.NewDecoder(bytes.NewReader(rawBody))
-		dec.UseNumber()
-		err = dec.Decode(&parsedBody)
+		err = json.Unmarshal(rawBody, &parsedBody)
 		if err != nil {
 			return PageResult{}, err
 		}

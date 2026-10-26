@@ -2,19 +2,19 @@ package cgroups
 
 type ThrottlingData struct {
 	// Number of periods with throttling active
-	Periods uint64 `json:"periods,omitzero"`
+	Periods uint64 `json:"periods,omitempty"`
 	// Number of periods when the container hit its throttling limit.
-	ThrottledPeriods uint64 `json:"throttled_periods,omitzero"`
+	ThrottledPeriods uint64 `json:"throttled_periods,omitempty"`
 	// Aggregate time the container was throttled for in nanoseconds.
-	ThrottledTime uint64 `json:"throttled_time,omitzero"`
+	ThrottledTime uint64 `json:"throttled_time,omitempty"`
 }
 
 type BurstData struct {
 	// Number of periods bandwidth burst occurs
-	BurstsPeriods uint64 `json:"bursts_periods,omitzero"`
+	BurstsPeriods uint64 `json:"bursts_periods,omitempty"`
 	// Cumulative wall-time that any cpus has used above quota in respective periods
 	// Units: nanoseconds.
-	BurstTime uint64 `json:"burst_time,omitzero"`
+	BurstTime uint64 `json:"burst_time,omitempty"`
 }
 
 // CpuUsage denotes the usage of a CPU.
@@ -22,10 +22,10 @@ type BurstData struct {
 type CpuUsage struct {
 	// Total CPU time consumed.
 	// Units: nanoseconds.
-	TotalUsage uint64 `json:"total_usage,omitzero"`
+	TotalUsage uint64 `json:"total_usage,omitempty"`
 	// Total CPU time consumed per core.
 	// Units: nanoseconds.
-	PercpuUsage []uint64 `json:"percpu_usage,omitzero"`
+	PercpuUsage []uint64 `json:"percpu_usage,omitempty"`
 	// CPU time consumed per core in kernel mode
 	// Units: nanoseconds.
 	PercpuUsageInKernelmode []uint64 `json:"percpu_usage_in_kernelmode"`
@@ -48,26 +48,26 @@ type PSIData struct {
 }
 
 type PSIStats struct {
-	Some PSIData `json:"some,omitzero"`
-	Full PSIData `json:"full,omitzero"`
+	Some PSIData `json:"some,omitempty"`
+	Full PSIData `json:"full,omitempty"`
 }
 
 type CpuStats struct {
-	CpuUsage       CpuUsage       `json:"cpu_usage,omitzero"`
-	ThrottlingData ThrottlingData `json:"throttling_data,omitzero"`
-	PSI            *PSIStats      `json:"psi,omitzero"`
-	BurstData      BurstData      `json:"burst_data,omitzero"`
+	CpuUsage       CpuUsage       `json:"cpu_usage,omitempty"`
+	ThrottlingData ThrottlingData `json:"throttling_data,omitempty"`
+	PSI            *PSIStats      `json:"psi,omitempty"`
+	BurstData      BurstData      `json:"burst_data,omitempty"`
 }
 
 type CPUSetStats struct {
 	// List of the physical numbers of the CPUs on which processes
 	// in that cpuset are allowed to execute
-	CPUs []uint16 `json:"cpus,omitzero"`
+	CPUs []uint16 `json:"cpus,omitempty"`
 	// cpu_exclusive flag
 	CPUExclusive uint64 `json:"cpu_exclusive"`
 	// List of memory nodes on which processes in that cpuset
 	// are allowed to allocate memory
-	Mems []uint16 `json:"mems,omitzero"`
+	Mems []uint16 `json:"mems,omitempty"`
 	// mem_hardwall flag
 	MemHardwall uint64 `json:"mem_hardwall"`
 	// mem_exclusive flag
@@ -87,122 +87,122 @@ type CPUSetStats struct {
 }
 
 type MemoryData struct {
-	Usage    uint64 `json:"usage,omitzero"`
-	MaxUsage uint64 `json:"max_usage,omitzero"`
+	Usage    uint64 `json:"usage,omitempty"`
+	MaxUsage uint64 `json:"max_usage,omitempty"`
 	Failcnt  uint64 `json:"failcnt"`
 	Limit    uint64 `json:"limit"`
 }
 
 type MemoryStats struct {
 	// memory used for cache
-	Cache uint64 `json:"cache,omitzero"`
+	Cache uint64 `json:"cache,omitempty"`
 	// usage of memory
-	Usage MemoryData `json:"usage,omitzero"`
+	Usage MemoryData `json:"usage,omitempty"`
 	// usage of memory + swap
-	SwapUsage MemoryData `json:"swap_usage,omitzero"`
+	SwapUsage MemoryData `json:"swap_usage,omitempty"`
 	// usage of swap only
-	SwapOnlyUsage MemoryData `json:"swap_only_usage,omitzero"`
+	SwapOnlyUsage MemoryData `json:"swap_only_usage,omitempty"`
 	// usage of kernel memory
-	KernelUsage MemoryData `json:"kernel_usage,omitzero"`
+	KernelUsage MemoryData `json:"kernel_usage,omitempty"`
 	// usage of kernel TCP memory
-	KernelTCPUsage MemoryData `json:"kernel_tcp_usage,omitzero"`
+	KernelTCPUsage MemoryData `json:"kernel_tcp_usage,omitempty"`
 	// usage of memory pages by NUMA node
 	// see chapter 5.6 of memory controller documentation
-	PageUsageByNUMA PageUsageByNUMA `json:"page_usage_by_numa,omitzero"`
+	PageUsageByNUMA PageUsageByNUMA `json:"page_usage_by_numa,omitempty"`
 	// if true, memory usage is accounted for throughout a hierarchy of cgroups.
 	UseHierarchy bool `json:"use_hierarchy"`
 
-	Stats map[string]uint64 `json:"stats,omitzero"`
-	PSI   *PSIStats         `json:"psi,omitzero"`
+	Stats map[string]uint64 `json:"stats,omitempty"`
+	PSI   *PSIStats         `json:"psi,omitempty"`
 }
 
 type PageUsageByNUMA struct {
 	// Embedding is used as types can't be recursive.
 	PageUsageByNUMAInner
-	Hierarchical PageUsageByNUMAInner `json:"hierarchical,omitzero"`
+	Hierarchical PageUsageByNUMAInner `json:"hierarchical,omitempty"`
 }
 
 type PageUsageByNUMAInner struct {
-	Total       PageStats `json:"total,omitzero"`
-	File        PageStats `json:"file,omitzero"`
-	Anon        PageStats `json:"anon,omitzero"`
-	Unevictable PageStats `json:"unevictable,omitzero"`
+	Total       PageStats `json:"total,omitempty"`
+	File        PageStats `json:"file,omitempty"`
+	Anon        PageStats `json:"anon,omitempty"`
+	Unevictable PageStats `json:"unevictable,omitempty"`
 }
 
 type PageStats struct {
-	Total uint64           `json:"total,omitzero"`
-	Nodes map[uint8]uint64 `json:"nodes,omitzero"`
+	Total uint64           `json:"total,omitempty"`
+	Nodes map[uint8]uint64 `json:"nodes,omitempty"`
 }
 
 type PidsStats struct {
 	// number of pids in the cgroup
-	Current uint64 `json:"current,omitzero"`
+	Current uint64 `json:"current,omitempty"`
 	// active pids hard limit
-	Limit uint64 `json:"limit,omitzero"`
+	Limit uint64 `json:"limit,omitempty"`
 }
 
 type BlkioStatEntry struct {
-	Major uint64 `json:"major,omitzero"`
-	Minor uint64 `json:"minor,omitzero"`
-	Op    string `json:"op,omitzero"`
-	Value uint64 `json:"value,omitzero"`
+	Major uint64 `json:"major,omitempty"`
+	Minor uint64 `json:"minor,omitempty"`
+	Op    string `json:"op,omitempty"`
+	Value uint64 `json:"value,omitempty"`
 }
 
 type BlkioStats struct {
 	// number of bytes transferred to and from the block device
-	IoServiceBytesRecursive []BlkioStatEntry `json:"io_service_bytes_recursive,omitzero"`
-	IoServicedRecursive     []BlkioStatEntry `json:"io_serviced_recursive,omitzero"`
-	IoQueuedRecursive       []BlkioStatEntry `json:"io_queue_recursive,omitzero"`
-	IoServiceTimeRecursive  []BlkioStatEntry `json:"io_service_time_recursive,omitzero"`
-	IoWaitTimeRecursive     []BlkioStatEntry `json:"io_wait_time_recursive,omitzero"`
-	IoMergedRecursive       []BlkioStatEntry `json:"io_merged_recursive,omitzero"`
-	IoTimeRecursive         []BlkioStatEntry `json:"io_time_recursive,omitzero"`
-	SectorsRecursive        []BlkioStatEntry `json:"sectors_recursive,omitzero"`
-	PSI                     *PSIStats        `json:"psi,omitzero"`
-	IoCostUsage             []BlkioStatEntry `json:"io_cost_usage,omitzero"`
-	IoCostWait              []BlkioStatEntry `json:"io_cost_wait,omitzero"`
-	IoCostIndebt            []BlkioStatEntry `json:"io_cost_indebt,omitzero"`
-	IoCostIndelay           []BlkioStatEntry `json:"io_cost_indelay,omitzero"`
+	IoServiceBytesRecursive []BlkioStatEntry `json:"io_service_bytes_recursive,omitempty"`
+	IoServicedRecursive     []BlkioStatEntry `json:"io_serviced_recursive,omitempty"`
+	IoQueuedRecursive       []BlkioStatEntry `json:"io_queue_recursive,omitempty"`
+	IoServiceTimeRecursive  []BlkioStatEntry `json:"io_service_time_recursive,omitempty"`
+	IoWaitTimeRecursive     []BlkioStatEntry `json:"io_wait_time_recursive,omitempty"`
+	IoMergedRecursive       []BlkioStatEntry `json:"io_merged_recursive,omitempty"`
+	IoTimeRecursive         []BlkioStatEntry `json:"io_time_recursive,omitempty"`
+	SectorsRecursive        []BlkioStatEntry `json:"sectors_recursive,omitempty"`
+	PSI                     *PSIStats        `json:"psi,omitempty"`
+	IoCostUsage             []BlkioStatEntry `json:"io_cost_usage,omitempty"`
+	IoCostWait              []BlkioStatEntry `json:"io_cost_wait,omitempty"`
+	IoCostIndebt            []BlkioStatEntry `json:"io_cost_indebt,omitempty"`
+	IoCostIndelay           []BlkioStatEntry `json:"io_cost_indelay,omitempty"`
 }
 
 type HugetlbStats struct {
 	// current res_counter usage for hugetlb
-	Usage uint64 `json:"usage,omitzero"`
+	Usage uint64 `json:"usage,omitempty"`
 	// maximum usage ever recorded.
-	MaxUsage uint64 `json:"max_usage,omitzero"`
+	MaxUsage uint64 `json:"max_usage,omitempty"`
 	// number of times hugetlb usage allocation failure.
 	Failcnt uint64 `json:"failcnt"`
 }
 
 type RdmaEntry struct {
-	Device     string `json:"device,omitzero"`
-	HcaHandles uint32 `json:"hca_handles,omitzero"`
-	HcaObjects uint32 `json:"hca_objects,omitzero"`
+	Device     string `json:"device,omitempty"`
+	HcaHandles uint32 `json:"hca_handles,omitempty"`
+	HcaObjects uint32 `json:"hca_objects,omitempty"`
 }
 
 type RdmaStats struct {
-	RdmaLimit   []RdmaEntry `json:"rdma_limit,omitzero"`
-	RdmaCurrent []RdmaEntry `json:"rdma_current,omitzero"`
+	RdmaLimit   []RdmaEntry `json:"rdma_limit,omitempty"`
+	RdmaCurrent []RdmaEntry `json:"rdma_current,omitempty"`
 }
 
 type MiscStats struct {
 	// current resource usage for a key in misc
-	Usage uint64 `json:"usage,omitzero"`
+	Usage uint64 `json:"usage,omitempty"`
 	// number of times the resource usage was about to go over the max boundary
-	Events uint64 `json:"events,omitzero"`
+	Events uint64 `json:"events,omitempty"`
 }
 
 type Stats struct {
-	CpuStats    CpuStats    `json:"cpu_stats,omitzero"`
-	CPUSetStats CPUSetStats `json:"cpuset_stats,omitzero"`
-	MemoryStats MemoryStats `json:"memory_stats,omitzero"`
-	PidsStats   PidsStats   `json:"pids_stats,omitzero"`
-	BlkioStats  BlkioStats  `json:"blkio_stats,omitzero"`
+	CpuStats    CpuStats    `json:"cpu_stats,omitempty"`
+	CPUSetStats CPUSetStats `json:"cpuset_stats,omitempty"`
+	MemoryStats MemoryStats `json:"memory_stats,omitempty"`
+	PidsStats   PidsStats   `json:"pids_stats,omitempty"`
+	BlkioStats  BlkioStats  `json:"blkio_stats,omitempty"`
 	// the map is in the format "size of hugepage: stats of the hugepage"
-	HugetlbStats map[string]HugetlbStats `json:"hugetlb_stats,omitzero"`
-	RdmaStats    RdmaStats               `json:"rdma_stats,omitzero"`
+	HugetlbStats map[string]HugetlbStats `json:"hugetlb_stats,omitempty"`
+	RdmaStats    RdmaStats               `json:"rdma_stats,omitempty"`
 	// the map is in the format "misc resource name: stats of the key"
-	MiscStats map[string]MiscStats `json:"misc_stats,omitzero"`
+	MiscStats map[string]MiscStats `json:"misc_stats,omitempty"`
 }
 
 func NewStats() *Stats {
@@ -210,30 +210,4 @@ func NewStats() *Stats {
 	hugetlbStats := make(map[string]HugetlbStats)
 	miscStats := make(map[string]MiscStats)
 	return &Stats{MemoryStats: memoryStats, HugetlbStats: hugetlbStats, MiscStats: miscStats}
-}
-
-// Controller represents a cgroup controller type for stats collection.
-type Controller int
-
-// Controller types for cgroup stats collection.
-const (
-	CPU Controller = 1 << iota
-	Memory
-	Pids
-	IO
-	HugeTLB
-	RDMA
-	Misc
-	CPUSet // v1 only
-)
-
-// AllControllers is a bitmask of all available controllers.
-const AllControllers = CPU | Memory | Pids | IO | HugeTLB | RDMA | Misc | CPUSet
-
-// StatsOptions specifies which controllers to retrieve statistics for.
-type StatsOptions struct {
-	// Controllers is a bitmask of Controller values.
-	// If 0, all available controllers are queried (default behavior).
-	// Use Controller constants like: CPU | Memory | Pids
-	Controllers Controller
 }

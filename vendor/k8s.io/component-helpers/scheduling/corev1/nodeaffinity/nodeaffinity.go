@@ -304,26 +304,18 @@ type RequiredNodeAffinity struct {
 
 // GetRequiredNodeAffinity returns the parsing result of pod's nodeSelector and nodeAffinity.
 func GetRequiredNodeAffinity(pod *v1.Pod) RequiredNodeAffinity {
-	return NewRequiredNodeAffinity(pod.Spec.NodeSelector, pod.Spec.Affinity)
-}
-
-// NewRequiredNodeAffinity returns the parsing result of the given nodeSelector
-// and affinity. It is equivalent to GetRequiredNodeAffinity for a pod carrying
-// them, for callers that have a pod spec's fields but no pod object (e.g.
-// workload controllers evaluating a pod template).
-func NewRequiredNodeAffinity(nodeSelector map[string]string, affinity *v1.Affinity) RequiredNodeAffinity {
 	var selector labels.Selector
-	if len(nodeSelector) > 0 {
-		selector = labels.SelectorFromSet(nodeSelector)
+	if len(pod.Spec.NodeSelector) > 0 {
+		selector = labels.SelectorFromSet(pod.Spec.NodeSelector)
 	}
 	// Use LazyErrorNodeSelector for backwards compatibility of parsing errors.
-	var lazyNodeSelector *LazyErrorNodeSelector
-	if affinity != nil &&
-		affinity.NodeAffinity != nil &&
-		affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
-		lazyNodeSelector = NewLazyErrorNodeSelector(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+	var affinity *LazyErrorNodeSelector
+	if pod.Spec.Affinity != nil &&
+		pod.Spec.Affinity.NodeAffinity != nil &&
+		pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
+		affinity = NewLazyErrorNodeSelector(pod.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
 	}
-	return RequiredNodeAffinity{labelSelector: selector, nodeSelector: lazyNodeSelector}
+	return RequiredNodeAffinity{labelSelector: selector, nodeSelector: affinity}
 }
 
 // Match checks whether the pod is schedulable onto nodes according to

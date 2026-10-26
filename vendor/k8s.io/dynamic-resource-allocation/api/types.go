@@ -40,14 +40,12 @@ type ResourceSlice struct {
 type ResourceSliceSpec struct {
 	Driver                 UniqueString
 	Pool                   ResourcePool
-	NodeName               *string                         `json:",omitempty"`
-	NodeSelector           *v1.NodeSelector                `json:",omitempty"`
-	AllNodes               bool                            `json:",omitempty"`
-	Devices                []Device                        `json:",omitempty"`
-	PerDeviceNodeSelection *bool                           `json:",omitempty"`
-	SharedCounters         []CounterSet                    `json:",omitempty"`
-	PartitionTypeAttribute *resourceapi.FullyQualifiedName `json:",omitempty"`
-	SkipNodeOperations     []resourceapi.SkipNodeOperation `json:",omitempty"`
+	NodeName               *string          `json:",omitempty"`
+	NodeSelector           *v1.NodeSelector `json:",omitempty"`
+	AllNodes               bool             `json:",omitempty"`
+	Devices                []Device         `json:",omitempty"`
+	PerDeviceNodeSelection *bool            `json:",omitempty"`
+	SharedCounters         []CounterSet     `json:",omitempty"`
 }
 
 type CounterSet struct {
@@ -62,23 +60,22 @@ type ResourcePool struct {
 }
 
 type Device struct {
-	Name                     UniqueString
-	Attributes               map[resourceapi.QualifiedName]resourceapi.DeviceAttribute `json:",omitempty"`
-	Capacity                 map[resourceapi.QualifiedName]resourceapi.DeviceCapacity  `json:",omitempty"`
-	ConsumesCounters         []DeviceCounterConsumption                                `json:",omitempty"`
-	NodeName                 *string                                                   `json:",omitempty"`
-	NodeSelector             *v1.NodeSelector                                          `json:",omitempty"`
-	AllNodes                 *bool                                                     `json:",omitempty"`
-	Taints                   []resourceapi.DeviceTaint                                 `json:",omitempty"`
-	BindsToNode              bool                                                      `json:",omitempty"`
-	BindingConditions        []string                                                  `json:",omitempty"`
-	BindingFailureConditions []string                                                  `json:",omitempty"`
-	AllowMultipleAllocations *bool                                                     `json:",omitempty"`
-	NodeAllocatableResources map[v1.ResourceName]resourceapi.NodeAllocatableResource   `json:",omitempty"`
+	Name                            UniqueString
+	Attributes                      map[resourceapi.QualifiedName]resourceapi.DeviceAttribute      `json:",omitempty"`
+	Capacity                        map[resourceapi.QualifiedName]resourceapi.DeviceCapacity       `json:",omitempty"`
+	ConsumesCounters                []DeviceCounterConsumption                                     `json:",omitempty"`
+	NodeName                        *string                                                        `json:",omitempty"`
+	NodeSelector                    *v1.NodeSelector                                               `json:",omitempty"`
+	AllNodes                        *bool                                                          `json:",omitempty"`
+	Taints                          []resourceapi.DeviceTaint                                      `json:",omitempty"`
+	BindsToNode                     bool                                                           `json:",omitempty"`
+	BindingConditions               []string                                                       `json:",omitempty"`
+	BindingFailureConditions        []string                                                       `json:",omitempty"`
+	AllowMultipleAllocations        *bool                                                          `json:",omitempty"`
+	NodeAllocatableResourceMappings map[v1.ResourceName]resourceapi.NodeAllocatableResourceMapping `json:",omitempty"`
 }
 
 type DeviceCounterConsumption struct {
-	CounterSet          UniqueString
-	Counters            map[string]resourceapi.Counter `json:",omitempty"`
-	CompatibilityGroups []string                       `json:",omitempty"`
+	CounterSet UniqueString
+	Counters   map[string]resourceapi.Counter `json:",omitempty"`
 }

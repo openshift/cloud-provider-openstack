@@ -409,7 +409,6 @@ func autoConvert_v1_NodeUnprepareResourcesResponse_To_v1beta1_NodeUnprepareResou
 }
 
 func autoConvert_v1beta1_UnimplementedDRAPluginServer_To_v1_UnimplementedDRAPluginServer(in *UnimplementedDRAPluginServer, out *v1.UnimplementedDRAPluginServer, s conversion.Scope) error {
-	*out = *(*v1.UnimplementedDRAPluginServer)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -419,7 +418,6 @@ func Convert_v1beta1_UnimplementedDRAPluginServer_To_v1_UnimplementedDRAPluginSe
 }
 
 func autoConvert_v1_UnimplementedDRAPluginServer_To_v1beta1_UnimplementedDRAPluginServer(in *v1.UnimplementedDRAPluginServer, out *UnimplementedDRAPluginServer, s conversion.Scope) error {
-	*out = *(*UnimplementedDRAPluginServer)(unsafe.Pointer(in))
 	return nil
 }
 

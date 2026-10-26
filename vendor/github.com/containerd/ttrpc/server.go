@@ -113,7 +113,9 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 					backoff *= 2
 				}
 
-				backoff = min(time.Second, backoff)
+				if max := time.Second; backoff > max {
+					backoff = max
+				}
 
 				sleep := time.Duration(rand.Int63n(int64(backoff)))
 				log.G(ctx).WithError(err).Errorf("ttrpc: failed accept; backoff %v", sleep)
@@ -413,7 +415,6 @@ func (c *serverConn) run(sctx context.Context) {
 					if !sendStatus(mh.StreamID, status.Newf(codes.InvalidArgument, "StreamID is no longer active")) {
 						return
 					}
-					continue
 				}
 				sh := i.(*streamHandler)
 				if mh.Flags&flagNoData != flagNoData {
@@ -427,7 +428,6 @@ func (c *serverConn) run(sctx context.Context) {
 						if !sendStatus(mh.StreamID, status.Newf(codes.InvalidArgument, "data handling error: %v", err)) {
 							return
 						}
-						continue
 					}
 				}
 
@@ -437,7 +437,6 @@ func (c *serverConn) run(sctx context.Context) {
 						if !sendStatus(mh.StreamID, status.Newf(codes.InvalidArgument, "data close message cannot include data")) {
 							return
 						}
-						continue
 					}
 				}
 			} else if mh.Type == messageTypeRequest {
@@ -568,6 +567,8 @@ func (c *serverConn) run(sctx context.Context) {
 	}
 }
 
+var noopFunc = func() {}
+
 func getRequestContext(ctx context.Context, req *Request) (retCtx context.Context, cancel func()) {
 	if len(req.Metadata) > 0 {
 		md := MD{}
@@ -575,10 +576,11 @@ func getRequestContext(ctx context.Context, req *Request) (retCtx context.Contex
 		ctx = WithMetadata(ctx, md)
 	}
 
+	cancel = noopFunc
 	if req.TimeoutNano == 0 {
-		// Cancellable so handlers' deferred cancel propagates to RecvMsg.
-		return context.WithCancel(ctx)
+		return ctx, cancel
 	}
 
-	return context.WithTimeout(ctx, time.Duration(req.TimeoutNano))
+	ctx, cancel = context.WithTimeout(ctx, time.Duration(req.TimeoutNano))
+	return ctx, cancel
 }

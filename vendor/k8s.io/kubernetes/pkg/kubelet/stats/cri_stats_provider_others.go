@@ -19,7 +19,7 @@ limitations under the License.
 package stats
 
 import (
-	cadvisorapi "github.com/google/cadvisor/lib/model"
+	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
 
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/klog/v2"
@@ -36,10 +36,10 @@ func (p *criStatsProvider) addCRIPodContainerStats(
 	klog.Logger,
 	*runtimeapi.PodSandboxStats,
 	*statsapi.PodStats,
-	map[string]*cadvisorapi.FsInfo,
+	map[string]*cadvisorapiv2.FsInfo,
 	map[string]*runtimeapi.Container,
 	*runtimeapi.PodSandbox,
-	*cadvisorapi.FsInfo,
+	*cadvisorapiv2.FsInfo,
 	bool) error {
 	return nil
 }

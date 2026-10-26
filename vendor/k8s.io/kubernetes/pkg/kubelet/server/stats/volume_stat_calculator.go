@@ -24,10 +24,12 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/component-helpers/storage/ephemeral"
 	"k8s.io/klog/v2"
 	stats "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 	utiltrace "k8s.io/utils/trace"
@@ -165,6 +167,11 @@ func (s *volumeStatCalculator) calcAndStoreStats(logger klog.Logger) {
 			persistentStats = append(persistentStats, volumeStats)
 		}
 
+		if utilfeature.DefaultFeatureGate.Enabled(features.CSIVolumeHealth) {
+			if metric.Abnormal != nil && metric.Message != nil && (*metric.Abnormal) {
+				s.eventRecorder.Event(s.pod, v1.EventTypeWarning, "VolumeConditionAbnormal", fmt.Sprintf("Volume %s: %s", name, *metric.Message))
+			}
+		}
 	}
 
 	// Store the new stats
@@ -203,6 +210,12 @@ func (s *volumeStatCalculator) parsePodVolumeStats(podName string, pvcRef *stats
 		PVCRef: pvcRef,
 		FsStats: stats.FsStats{Time: metric.Time, AvailableBytes: &available, CapacityBytes: &capacity,
 			UsedBytes: &used, Inodes: &inodes, InodesFree: &inodesFree, InodesUsed: &inodesUsed},
+	}
+
+	if metric.Abnormal != nil {
+		volumeStats.VolumeHealthStats = &stats.VolumeHealthStats{
+			Abnormal: *metric.Abnormal,
+		}
 	}
 
 	return volumeStats

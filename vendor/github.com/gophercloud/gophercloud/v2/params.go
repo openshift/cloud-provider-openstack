@@ -58,12 +58,12 @@ above.
 */
 func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 	optsValue := reflect.ValueOf(opts)
-	if optsValue.Kind() == reflect.Pointer {
+	if optsValue.Kind() == reflect.Ptr {
 		optsValue = optsValue.Elem()
 	}
 
 	optsType := reflect.TypeOf(opts)
-	if optsType.Kind() == reflect.Pointer {
+	if optsType.Kind() == reflect.Ptr {
 		optsType = optsType.Elem()
 	}
 
@@ -88,12 +88,9 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 			// if the field has a required tag that's set to "true"
 			if requiredTag := f.Tag.Get("required"); requiredTag == "true" {
 				//fmt.Printf("Checking required field [%s]:\n\tv: %+v\n\tisZero:%v\n", f.Name, v.Interface(), zero)
-				// if the field's value is zero, return a missing-argument error.
-				// Numeric zero values are exempt: zero is legitimate input for
-				// several OpenStack APIs (for example, Keystone accepts 0 as a
-				// registered limit), so range validation is left to the server.
-				if zero && !isNumeric(v) {
-					// Required non-numeric fields cannot have a zero value.
+				// if the field's value is zero, return a missing-argument error
+				if zero {
+					// if the field has a 'required' tag, it can't have a zero-value
 					err := ErrMissingInput{}
 					err.Argument = f.Name
 					return nil, err
@@ -107,7 +104,7 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 				if reflect.ValueOf(xorField.Interface()) == reflect.Zero(xorField.Type()) {
 					xorFieldIsZero = true
 				} else {
-					if xorField.Kind() == reflect.Pointer {
+					if xorField.Kind() == reflect.Ptr {
 						xorField = xorField.Elem()
 					}
 					xorFieldIsZero = isZero(xorField)
@@ -129,7 +126,7 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 					if reflect.ValueOf(orField.Interface()) == reflect.Zero(orField.Type()) {
 						orFieldIsZero = true
 					} else {
-						if orField.Kind() == reflect.Pointer {
+						if orField.Kind() == reflect.Ptr {
 							orField = orField.Elem()
 						}
 						orFieldIsZero = isZero(orField)
@@ -148,15 +145,15 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 				continue
 			}
 
-			if v.Kind() == reflect.Slice || (v.Kind() == reflect.Pointer && v.Elem().Kind() == reflect.Slice) {
+			if v.Kind() == reflect.Slice || (v.Kind() == reflect.Ptr && v.Elem().Kind() == reflect.Slice) {
 				sliceValue := v
-				if sliceValue.Kind() == reflect.Pointer {
+				if sliceValue.Kind() == reflect.Ptr {
 					sliceValue = sliceValue.Elem()
 				}
 
 				for i := 0; i < sliceValue.Len(); i++ {
 					element := sliceValue.Index(i)
-					if element.Kind() == reflect.Struct || (element.Kind() == reflect.Pointer && element.Elem().Kind() == reflect.Struct) {
+					if element.Kind() == reflect.Struct || (element.Kind() == reflect.Ptr && element.Elem().Kind() == reflect.Struct) {
 						_, err := BuildRequestBody(element.Interface(), "")
 						if err != nil {
 							return nil, err
@@ -164,7 +161,7 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 					}
 				}
 			}
-			if v.Kind() == reflect.Struct || (v.Kind() == reflect.Pointer && v.Elem().Kind() == reflect.Struct) {
+			if v.Kind() == reflect.Struct || (v.Kind() == reflect.Ptr && v.Elem().Kind() == reflect.Struct) {
 				if zero {
 					//fmt.Printf("value before change: %+v\n", optsValue.Field(i))
 					if jsonTag != "" {
@@ -172,7 +169,7 @@ func BuildRequestBody(opts any, parent string) (map[string]any, error) {
 						if len(jsonTagPieces) > 1 && jsonTagPieces[1] == "omitempty" {
 							if v.CanSet() {
 								if !v.IsNil() {
-									if v.Kind() == reflect.Pointer {
+									if v.Kind() == reflect.Ptr {
 										v.Set(reflect.Zero(v.Type()))
 									}
 								}
@@ -295,7 +292,7 @@ func MaybeInt(original int) *int {
 /*
 func isUnderlyingStructZero(v reflect.Value) bool {
 	switch v.Kind() {
-	case reflect.Pointer:
+	case reflect.Ptr:
 		return isUnderlyingStructZero(v.Elem())
 	default:
 		return isZero(v)
@@ -305,22 +302,10 @@ func isUnderlyingStructZero(v reflect.Value) bool {
 
 var t time.Time
 
-// isNumeric reports whether v holds a numeric value (integer, unsigned
-// integer or floating point number).
-func isNumeric(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		reflect.Float32, reflect.Float64:
-		return true
-	}
-	return false
-}
-
 func isZero(v reflect.Value) bool {
 	//fmt.Printf("\n\nchecking isZero for value: %+v\n", v)
 	switch v.Kind() {
-	case reflect.Pointer:
+	case reflect.Ptr:
 		if v.IsNil() {
 			return true
 		}
@@ -368,9 +353,8 @@ converted into query parameters based on a "q" tag. For example:
 
 will be converted into "?x_bar=AAA&lorem_ipsum=BBB".
 
-The struct's fields may be strings, integers, slices, or boolean values. Optional
-fields left at their type's zero value will be omitted from the query. Required
-int fields are included even when zero; other required zero values return an error.
+The struct's fields may be strings, integers, slices, or boolean values. Fields
+left at their type's zero value will be omitted from the query.
 
 Slice are handled in one of two ways:
 
@@ -381,12 +365,12 @@ Slice are handled in one of two ways:
 */
 func BuildQueryString(opts any) (*url.URL, error) {
 	optsValue := reflect.ValueOf(opts)
-	if optsValue.Kind() == reflect.Pointer {
+	if optsValue.Kind() == reflect.Ptr {
 		optsValue = optsValue.Elem()
 	}
 
 	optsType := reflect.TypeOf(opts)
-	if optsType.Kind() == reflect.Pointer {
+	if optsType.Kind() == reflect.Ptr {
 		optsType = optsType.Elem()
 	}
 
@@ -402,15 +386,11 @@ func BuildQueryString(opts any) (*url.URL, error) {
 			if qTag != "" {
 				tags := strings.Split(qTag, ",")
 
-				required := f.Tag.Get("required") == "true"
-
-				// if the field is set, add it to the slice of query pieces.
-				// Required int fields are included even when zero. Only exempt
-				// numeric kinds supported by the serialization switch below.
-				if !isZero(v) || (required && v.Kind() == reflect.Int) {
+				// if the field is set, add it to the slice of query pieces
+				if !isZero(v) {
 				loop:
 					switch v.Kind() {
-					case reflect.Pointer:
+					case reflect.Ptr:
 						v = v.Elem()
 						goto loop
 					case reflect.String:
@@ -447,9 +427,8 @@ func BuildQueryString(opts any) (*url.URL, error) {
 						}
 					}
 				} else {
-					// Required fields cannot have a zero value unless they are
-					// numeric kinds supported by the serialization switch above.
-					if required {
+					// if the field has a 'required' tag, it can't have a zero-value
+					if requiredTag := f.Tag.Get("required"); requiredTag == "true" {
 						return &url.URL{}, fmt.Errorf("required query parameter [%s] not set", f.Name)
 					}
 				}
@@ -487,18 +466,17 @@ will be converted into:
 	  "lorem_ipsum": "BBB",
 	}
 
-Untagged fields and optional fields left at their zero values are skipped.
-Integers, booleans and string values are supported. Required int and int64 fields
-are included even when zero; other required zero values return an error.
+Untagged fields and fields left at their zero values are skipped. Integers,
+booleans and string values are supported.
 */
 func BuildHeaders(opts any) (map[string]string, error) {
 	optsValue := reflect.ValueOf(opts)
-	if optsValue.Kind() == reflect.Pointer {
+	if optsValue.Kind() == reflect.Ptr {
 		optsValue = optsValue.Elem()
 	}
 
 	optsType := reflect.TypeOf(opts)
-	if optsType.Kind() == reflect.Pointer {
+	if optsType.Kind() == reflect.Ptr {
 		optsType = optsType.Elem()
 	}
 
@@ -513,13 +491,9 @@ func BuildHeaders(opts any) (map[string]string, error) {
 			if hTag != "" {
 				tags := strings.Split(hTag, ",")
 
-				required := f.Tag.Get("required") == "true"
-
-				// if the field is set, add it to the map. Required int and int64
-				// fields are included even when zero. Only exempt numeric kinds
-				// supported by the serialization switch below.
-				if !isZero(v) || (required && (v.Kind() == reflect.Int || v.Kind() == reflect.Int64)) {
-					if v.Kind() == reflect.Pointer {
+				// if the field is set, add it to the slice of query pieces
+				if !isZero(v) {
+					if v.Kind() == reflect.Ptr {
 						v = v.Elem()
 					}
 					switch v.Kind() {
@@ -533,9 +507,8 @@ func BuildHeaders(opts any) (map[string]string, error) {
 						optsMap[tags[0]] = strconv.FormatBool(v.Bool())
 					}
 				} else {
-					// Required fields cannot have a zero value unless they are
-					// numeric kinds supported by the serialization switch above.
-					if required {
+					// if the field has a 'required' tag, it can't have a zero-value
+					if requiredTag := f.Tag.Get("required"); requiredTag == "true" {
 						return optsMap, fmt.Errorf("required header [%s] not set", f.Name)
 					}
 				}

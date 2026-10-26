@@ -880,14 +880,18 @@ func (s ActivePodsWithRanks) Less(i, j int) bool {
 		readyTime1 := podReadyTime(s.Pods[i])
 		readyTime2 := podReadyTime(s.Pods[j])
 		if !readyTime1.Equal(readyTime2) {
-			if s.Now.IsZero() || readyTime1.IsZero() || readyTime2.IsZero() {
+			if !utilfeature.DefaultFeatureGate.Enabled(features.LogarithmicScaleDown) {
 				return afterOrZero(readyTime1, readyTime2)
+			} else {
+				if s.Now.IsZero() || readyTime1.IsZero() || readyTime2.IsZero() {
+					return afterOrZero(readyTime1, readyTime2)
+				}
+				rankDiff := logarithmicRankDiff(*readyTime1, *readyTime2, s.Now)
+				if rankDiff == 0 {
+					return s.Pods[i].UID < s.Pods[j].UID
+				}
+				return rankDiff < 0
 			}
-			rankDiff := logarithmicRankDiff(*readyTime1, *readyTime2, s.Now)
-			if rankDiff == 0 {
-				return s.Pods[i].UID < s.Pods[j].UID
-			}
-			return rankDiff < 0
 		}
 	}
 	// 7. Pods with containers with higher restart counts < lower restart counts
@@ -896,14 +900,18 @@ func (s ActivePodsWithRanks) Less(i, j int) bool {
 	}
 	// 8. Empty creation time pods < newer pods < older pods
 	if !s.Pods[i].CreationTimestamp.Equal(&s.Pods[j].CreationTimestamp) {
-		if s.Now.IsZero() || s.Pods[i].CreationTimestamp.IsZero() || s.Pods[j].CreationTimestamp.IsZero() {
+		if !utilfeature.DefaultFeatureGate.Enabled(features.LogarithmicScaleDown) {
 			return afterOrZero(&s.Pods[i].CreationTimestamp, &s.Pods[j].CreationTimestamp)
+		} else {
+			if s.Now.IsZero() || s.Pods[i].CreationTimestamp.IsZero() || s.Pods[j].CreationTimestamp.IsZero() {
+				return afterOrZero(&s.Pods[i].CreationTimestamp, &s.Pods[j].CreationTimestamp)
+			}
+			rankDiff := logarithmicRankDiff(s.Pods[i].CreationTimestamp, s.Pods[j].CreationTimestamp, s.Now)
+			if rankDiff == 0 {
+				return s.Pods[i].UID < s.Pods[j].UID
+			}
+			return rankDiff < 0
 		}
-		rankDiff := logarithmicRankDiff(s.Pods[i].CreationTimestamp, s.Pods[j].CreationTimestamp, s.Now)
-		if rankDiff == 0 {
-			return s.Pods[i].UID < s.Pods[j].UID
-		}
-		return rankDiff < 0
 	}
 	return false
 }

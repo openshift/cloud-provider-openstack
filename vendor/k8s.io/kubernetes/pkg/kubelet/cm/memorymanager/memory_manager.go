@@ -22,25 +22,20 @@ import (
 	"runtime"
 	"sync"
 
-	cadvisorapi "github.com/google/cadvisor/lib/model"
+	cadvisorapi "github.com/google/cadvisor/info/v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apiserver/pkg/util/feature"
-	resourcehelper "k8s.io/component-helpers/resource"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	corev1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
-	"k8s.io/kubernetes/pkg/features"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/pkg/kubelet/cm/containermap"
 	"k8s.io/kubernetes/pkg/kubelet/cm/memorymanager/state"
-	cmqos "k8s.io/kubernetes/pkg/kubelet/cm/qos"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/kubernetes/pkg/kubelet/config"
-	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/status"
 )
 
@@ -70,7 +65,7 @@ type Manager interface {
 
 	// Allocate is called to pre-allocate memory resources during Pod admission.
 	// This must be called at some point prior to the AddContainer() call for a container, e.g. at pod admission time.
-	Allocate(ctx context.Context, pod *v1.Pod, container *v1.Container, operation lifecycle.Operation) error
+	Allocate(pod *v1.Pod, container *v1.Container) error
 
 	// RemoveContainer is called after Kubelet decides to kill or delete a
 	// container. After this call, any memory allocated to the container is freed.
@@ -82,30 +77,24 @@ type Manager interface {
 	// GetTopologyHints implements the topologymanager.HintProvider Interface
 	// and is consulted to achieve NUMA aware resource alignment among this
 	// and other resource controllers.
-	GetTopologyHints(logger klog.Logger, pod *v1.Pod, container *v1.Container, operation lifecycle.Operation) map[string][]topologymanager.TopologyHint
+	GetTopologyHints(*v1.Pod, *v1.Container) map[string][]topologymanager.TopologyHint
 
 	// GetPodTopologyHints implements the topologymanager.HintProvider Interface
 	// and is consulted to achieve NUMA aware resource alignment among this
 	// and other resource controllers.
-	GetPodTopologyHints(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) map[string][]topologymanager.TopologyHint
+	GetPodTopologyHints(*v1.Pod) map[string][]topologymanager.TopologyHint
 
 	// AllocatePod is called to trigger the allocation of memory to a pod.
-	AllocatePod(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) error
+	AllocatePod(pod *v1.Pod) error
 
 	// GetMemoryNUMANodes provides NUMA nodes that are used to allocate the container memory
 	GetMemoryNUMANodes(logger klog.Logger, pod *v1.Pod, container *v1.Container) sets.Set[int]
 
 	// GetAllocatableMemory returns the amount of allocatable memory for each NUMA node
-	GetAllocatableMemory(logger klog.Logger) []state.Block
+	GetAllocatableMemory() []state.Block
 
 	// GetMemory returns the memory allocated by a container from NUMA nodes
-	GetMemory(logger klog.Logger, podUID, containerName string) []state.Block
-
-	// GetPodMemory returns the memory allocated by a pod from NUMA nodes
-	GetPodMemory(podUID string) []state.Block
-
-	// GetResourceIsolationLevel returns the isolation level of the container.
-	GetResourceIsolationLevel(pod *v1.Pod, container *v1.Container) cmqos.ResourceIsolationLevel
+	GetMemory(podUID, containerName string) []state.Block
 }
 
 type manager struct {
@@ -175,15 +164,7 @@ func NewManager(logger klog.Logger, policyName string, machineInfo *cadvisorapi.
 			if err != nil {
 				return nil, err
 			}
-			// The Windows BestEffort policy follows the CPU manager's NUMA
-			// decision, which it reads through the affinity Store. That requires
-			// the richer AuthoritativeStore interface (implemented by the Windows
-			// cpuFollowingStore); a plain Store is not sufficient.
-			authStore, ok := affinity.(topologymanager.AuthoritativeStore)
-			if !ok {
-				return nil, fmt.Errorf("policy %q requires an AuthoritativeStore affinity", policyTypeBestEffort)
-			}
-			policy, err = NewPolicyBestEffort(logger, machineInfo, systemReserved, authStore)
+			policy, err = NewPolicyBestEffort(logger, machineInfo, systemReserved, affinity)
 			if err != nil {
 				return nil, err
 			}
@@ -283,29 +264,31 @@ func (m *manager) GetMemoryNUMANodes(logger klog.Logger, pod *v1.Pod, container 
 }
 
 // Allocate is called to pre-allocate memory resources during Pod admission.
-func (m *manager) Allocate(ctx context.Context, pod *v1.Pod, container *v1.Container, operation lifecycle.Operation) error {
-	logger := klog.FromContext(ctx)
+func (m *manager) Allocate(pod *v1.Pod, container *v1.Container) error {
+	logger := klog.TODO()
 	m.removeStaleState(logger)
 
 	m.Lock()
 	defer m.Unlock()
 
 	// Call down into the policy to assign this container memory if required.
-	if err := m.policy.Allocate(ctx, m.state, pod, container, operation); err != nil {
+	if err := m.policy.Allocate(logger, m.state, pod, container); err != nil {
 		logger.Error(err, "Allocate error", "pod", klog.KObj(pod), "containerName", container.Name)
 		return err
 	}
 	return nil
 }
 
-func (m *manager) AllocatePod(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) error {
+func (m *manager) AllocatePod(pod *v1.Pod) error {
+	logger := klog.TODO() // until we move topology manager to contextual logging
+
 	m.removeStaleState(logger)
 
 	m.Lock()
 	defer m.Unlock()
 
 	// Call down into the policy to assign this container memory if required.
-	if err := m.policy.AllocatePod(logger, m.state, pod, operation); err != nil {
+	if err := m.policy.AllocatePod(logger, m.state, pod); err != nil {
 		logger.Error(err, "AllocatePod error", "pod", klog.KObj(pod))
 		return err
 	}
@@ -337,19 +320,22 @@ func (m *manager) State() state.Reader {
 }
 
 // GetPodTopologyHints returns the topology hints for the topology manager
-func (m *manager) GetPodTopologyHints(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) map[string][]topologymanager.TopologyHint {
+func (m *manager) GetPodTopologyHints(pod *v1.Pod) map[string][]topologymanager.TopologyHint {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// This should be replaced with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
 	// Garbage collect any stranded resources before providing TopologyHints
-	m.removeStaleState(logger)
+	m.removeStaleState(klog.FromContext(ctx))
 	// Delegate to active policy
-	return m.policy.GetPodTopologyHints(logger, m.state, pod, operation)
+	return m.policy.GetPodTopologyHints(klog.TODO(), m.state, pod)
 }
 
 // GetTopologyHints returns the topology hints for the topology manager
-func (m *manager) GetTopologyHints(logger klog.Logger, pod *v1.Pod, container *v1.Container, operation lifecycle.Operation) map[string][]topologymanager.TopologyHint {
+func (m *manager) GetTopologyHints(pod *v1.Pod, container *v1.Container) map[string][]topologymanager.TopologyHint {
 	// Garbage collect any stranded resources before providing TopologyHints
-	m.removeStaleState(logger)
+	m.removeStaleState(klog.TODO())
 	// Delegate to active policy
-	return m.policy.GetTopologyHints(logger, m.state, pod, container, operation)
+	return m.policy.GetTopologyHints(klog.TODO(), m.state, pod, container)
 }
 
 // TODO: move the method to the upper level, to re-use it under the CPU and memory managers
@@ -500,29 +486,11 @@ func getSystemReservedMemory(machineInfo *cadvisorapi.MachineInfo, nodeAllocatab
 }
 
 // GetAllocatableMemory returns the amount of allocatable memory for each NUMA node
-func (m *manager) GetAllocatableMemory(_ klog.Logger) []state.Block {
+func (m *manager) GetAllocatableMemory() []state.Block {
 	return m.allocatableMemory
 }
 
 // GetMemory returns the memory allocated by a container from NUMA nodes
-func (m *manager) GetMemory(_ klog.Logger, podUID, containerName string) []state.Block {
+func (m *manager) GetMemory(podUID, containerName string) []state.Block {
 	return m.state.GetMemoryBlocks(podUID, containerName)
-}
-
-// GetPodMemory returns the memory allocated by a pod from NUMA nodes
-func (m *manager) GetPodMemory(podUID string) []state.Block {
-	return m.state.GetPodMemoryBlocks(podUID)
-}
-
-// GetResourceIsolationLevel returns the isolation level of the container.
-func (m *manager) GetResourceIsolationLevel(pod *v1.Pod, container *v1.Container) cmqos.ResourceIsolationLevel {
-	if len(m.state.GetMemoryBlocks(string(pod.UID), container.Name)) == 0 {
-		return cmqos.ResourceIsolationHost
-	}
-
-	if feature.DefaultFeatureGate.Enabled(features.PodLevelResourceManagers) && resourcehelper.IsPodLevelResourcesSet(pod) && !cmqos.IsContainerEquivalentQOSGuaranteed(container) {
-		return cmqos.ResourceIsolationPod
-	}
-
-	return cmqos.ResourceIsolationContainer
 }

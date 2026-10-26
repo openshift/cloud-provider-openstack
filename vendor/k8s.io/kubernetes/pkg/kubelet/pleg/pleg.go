@@ -17,11 +17,9 @@ limitations under the License.
 package pleg
 
 import (
-	"context"
 	"time"
 
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/klog/v2"
 )
 
 // PodLifeCycleEventType define the event type of pod life cycle events.
@@ -64,11 +62,20 @@ type PodLifecycleEvent struct {
 
 // PodLifecycleEventGenerator contains functions for generating pod life cycle events.
 type PodLifecycleEventGenerator interface {
-	Start(ctx context.Context)
+	Start()
 	Watch() chan *PodLifecycleEvent
 	Healthy() (bool, error)
 	// RequestReinspect flags the pod for reinspection on the next Relist iteration.
 	RequestReinspect(podUID types.UID)
 	// RequestRelist queues up the pod for an on-demand relist.
-	RequestRelist(logger klog.Logger, podUID types.UID)
+	RequestRelist(podUID types.UID)
+}
+
+// podLifecycleEventGeneratorHandler contains functions that are useful for different PLEGs
+// and need not be exposed to rest of the kubelet
+type podLifecycleEventGeneratorHandler interface {
+	PodLifecycleEventGenerator
+	Stop()
+	Update(relistDuration *RelistDuration)
+	Relist()
 }

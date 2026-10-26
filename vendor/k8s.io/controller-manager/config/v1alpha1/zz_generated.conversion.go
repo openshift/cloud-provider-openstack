@@ -71,7 +71,8 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1alpha1_ControllerLeaderConfiguration_To_config_ControllerLeaderConfiguration(in *ControllerLeaderConfiguration, out *config.ControllerLeaderConfiguration, s conversion.Scope) error {
-	*out = *(*config.ControllerLeaderConfiguration)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Component = in.Component
 	return nil
 }
 
@@ -81,7 +82,8 @@ func Convert_v1alpha1_ControllerLeaderConfiguration_To_config_ControllerLeaderCo
 }
 
 func autoConvert_config_ControllerLeaderConfiguration_To_v1alpha1_ControllerLeaderConfiguration(in *config.ControllerLeaderConfiguration, out *ControllerLeaderConfiguration, s conversion.Scope) error {
-	*out = *(*ControllerLeaderConfiguration)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Component = in.Component
 	return nil
 }
 

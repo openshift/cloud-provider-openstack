@@ -40,10 +40,6 @@ const (
 	DefTestExpandIncrement int64 = 1 * 1024 * 1024 * 1024
 
 	MaxNameLength int = 128
-
-	// CSI 1.13 removed the deprecated VOLUME_CONDITION capability name.
-	// Keep accepting its wire value because older drivers may still report it.
-	deprecatedControllerVolumeCondition csi.ControllerServiceCapability_RPC_Type = 11
 )
 
 func TestVolumeSize(sc *TestContext) int64 {
@@ -99,6 +95,7 @@ func isControllerCapabilitySupported(
 		&csi.ControllerGetCapabilitiesRequest{})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(caps).NotTo(BeNil())
+	Expect(caps.GetCapabilities()).NotTo(BeNil())
 
 	for _, cap := range caps.GetCapabilities() {
 		Expect(cap.GetRpc()).NotTo(BeNil())
@@ -133,6 +130,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			By("checking successful response")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(caps).NotTo(BeNil())
+			Expect(caps.GetCapabilities()).NotTo(BeNil())
 
 			for _, cap := range caps.GetCapabilities() {
 				Expect(cap.GetRpc()).NotTo(BeNil())
@@ -150,11 +148,8 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 				case csi.ControllerServiceCapability_RPC_MODIFY_VOLUME:
 				case csi.ControllerServiceCapability_RPC_LIST_VOLUMES_PUBLISHED_NODES:
 				case csi.ControllerServiceCapability_RPC_GET_VOLUME:
+				case csi.ControllerServiceCapability_RPC_VOLUME_CONDITION:
 				case csi.ControllerServiceCapability_RPC_SINGLE_NODE_MULTI_WRITER:
-				case csi.ControllerServiceCapability_RPC_GET_SNAPSHOT:
-				case csi.ControllerServiceCapability_RPC_LIST_VOLUME_HEALTH:
-				case csi.ControllerServiceCapability_RPC_GET_VOLUME_HEALTH:
-				case deprecatedControllerVolumeCondition:
 				default:
 					Fail(fmt.Sprintf("Unknown capability: %v\n", cap.GetRpc().GetType()))
 				}
@@ -202,7 +197,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			vols, err := r.ListVolumes(
 				context.Background(),
 				&csi.ListVolumesRequest{
-					StartingToken: sc.Config.TestInvalidListVolumesStartingToken,
+					StartingToken: "invalid-token",
 				},
 			)
 			ExpectErrorCode(vols, err, codes.Aborted)
@@ -474,7 +469,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			}
 
 			By("creating a volume")
-			vol1Req := MakeCreateVolumeReq(sc, UniqueString("sanity-controller-source-vol-snap"))
+			vol1Req := MakeCreateVolumeReq(sc, UniqueString("sanity-controller-source-vol"))
 			vol1 := r.MustCreateVolume(context.Background(), vol1Req)
 
 			By("creating a snapshot from the volume")
@@ -499,9 +494,8 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 				},
 			}
 			vol, err := r.CreateVolume(context.Background(), vol2Req)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(vol).NotTo(BeNil())
 			Expect(vol.GetVolume().ContentSource).NotTo(BeNil())
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should fail when the volume source snapshot is not found", func() {
@@ -510,7 +504,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			}
 
 			By("creating a volume from source snapshot")
-			volName := UniqueString("sanity-controller-vol-from-snap-not-found")
+			volName := UniqueString("sanity-controller-vol-from-snap")
 			volReq := MakeCreateVolumeReq(sc, volName)
 			volReq.VolumeContentSource = &csi.VolumeContentSource{
 				Type: &csi.VolumeContentSource_Snapshot{
@@ -529,7 +523,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			}
 
 			By("creating a volume")
-			vol1Name := UniqueString("sanity-controller-source-vol-clone")
+			vol1Name := UniqueString("sanity-controller-source-vol")
 			vol1Req := MakeCreateVolumeReq(sc, vol1Name)
 			volume1 := r.MustCreateVolume(context.Background(), vol1Req)
 
@@ -552,8 +546,8 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 				Skip("Volume Cloning not supported")
 			}
 
-			By("creating a volume from source volume")
-			volName := UniqueString("sanity-controller-vol-from-vol-not-found")
+			By("creating a volume from source snapshot")
+			volName := UniqueString("sanity-controller-vol-from-snap")
 			volReq := MakeCreateVolumeReq(sc, volName)
 			volReq.VolumeContentSource = &csi.VolumeContentSource{
 				Type: &csi.VolumeContentSource_Volume{
@@ -585,7 +579,7 @@ var _ = DescribeSanity("Controller Service [Controller Server]", func(sc *TestCo
 			}
 
 			By("failing to create a volume")
-			volName := UniqueString("sanity-controller-vol-with-mutable-parameters-invalid")
+			volName := UniqueString("sanity-controller-vol-with-mutable-parameters")
 			volReq := MakeCreateVolumeReq(sc, volName)
 			volReq.MutableParameters = map[string]string{
 				"XXX_FakeKey": "XXX_FakeValue",
@@ -1192,86 +1186,6 @@ var _ = DescribeSanity("ListSnapshots [Controller Server]", func(sc *TestContext
 	})
 })
 
-var _ = DescribeSanity("GetSnapshot [Controller Server]", func(sc *TestContext) {
-	var r *Resources
-
-	BeforeEach(func() {
-		r = &Resources{
-			Context:          sc,
-			ControllerClient: csi.NewControllerClient(sc.ControllerConn),
-			NodeClient:       csi.NewNodeClient(sc.Conn),
-		}
-
-		if !isControllerCapabilitySupported(r, csi.ControllerServiceCapability_RPC_GET_SNAPSHOT) {
-			Skip("GetSnapshot not supported")
-		}
-	})
-
-	AfterEach(func() {
-		r.Cleanup()
-	})
-
-	It("should return an error", func() {
-
-		req := &csi.GetSnapshotRequest{}
-
-		if sc.Secrets != nil {
-			req.Secrets = sc.Secrets.GetSnapshotSecret
-		}
-
-		snapshot, err := r.GetSnapshot(context.Background(), req)
-		Expect(err).To(HaveOccurred())
-		Expect(snapshot).To(BeNil())
-	})
-
-	It("should return snapshot that match the specified snapshot id", func() {
-		// The test creates three snapshots: one that we intend to find by
-		// snapshot ID, and two unrelated ones that must not be returned.
-
-		By("creating first unrelated snapshot")
-		// Create volume source and afterwards the first unrelated snapshot.
-		volReq := MakeCreateVolumeReq(sc, UniqueString("getSnapshot-volume-unrelated-s-1"))
-		r.MustCreateSnapshotFromVolumeRequest(context.Background(), volReq, UniqueString("getSnapshot-snapshot-unrelated-s-1"))
-
-		By("creating target snapshot")
-		// Create volume source and afterwards the target snapshot.
-		volReq = MakeCreateVolumeReq(sc, UniqueString("getSnapshot-volume-target-s"))
-		snapshotTarget, _ := r.MustCreateSnapshotFromVolumeRequest(context.Background(), volReq, UniqueString("getSnapshot-snapshot-target-s"))
-
-		By("creating second unrelated snapshot")
-		// Create volume source and afterwards the second unrelated snapshot.
-		volReq = MakeCreateVolumeReq(sc, UniqueString("getSnapshot-volume-unrelated-s-2"))
-		r.MustCreateSnapshotFromVolumeRequest(context.Background(), volReq, UniqueString("getSnapshot-snapshot-unrelated-s-2"))
-
-		By("get snapshot")
-
-		req := &csi.GetSnapshotRequest{SnapshotId: snapshotTarget.GetSnapshot().GetSnapshotId()}
-
-		if sc.Secrets != nil {
-			req.Secrets = sc.Secrets.GetSnapshotSecret
-		}
-
-		snapshot, err := r.GetSnapshot(context.Background(), req)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(snapshot).NotTo(BeNil())
-		verifySnapshotInfo(snapshot.GetSnapshot())
-		Expect(snapshot.GetSnapshot().GetSnapshotId()).To(Equal(snapshotTarget.GetSnapshot().GetSnapshotId()))
-	})
-
-	It("should return an error when the specified snapshot id does not exist", func() {
-
-		req := &csi.GetSnapshotRequest{SnapshotId: "none-exist-id"}
-
-		if sc.Secrets != nil {
-			req.Secrets = sc.Secrets.GetSnapshotSecret
-		}
-
-		snapshot, err := r.GetSnapshot(context.Background(), req)
-		Expect(err).To(HaveOccurred())
-		Expect(snapshot).To(BeNil())
-	})
-})
-
 var _ = DescribeSanity("DeleteSnapshot [Controller Server]", func(sc *TestContext) {
 	var r *Resources
 
@@ -1416,43 +1330,6 @@ var _ = DescribeSanity("CreateSnapshot [Controller Server]", func(sc *TestContex
 
 		// TODO: review if the second snapshot create is really necessary
 		r.MustCreateSnapshot(context.Background(), snapReq1)
-	})
-
-	It("should succeed when creating a snapshot with accessibility requirements", func() {
-		if !isPluginCapabilitySupported(csi.NewIdentityClient(sc.ControllerConn), csi.PluginCapability_Service_SNAPSHOT_ACCESSIBILITY_CONSTRAINTS) {
-			Skip("SNAPSHOT_ACCESSIBILITY_CONSTRAINTS not supported")
-		}
-
-		By("getting node information")
-		ni, err := r.NodeGetInfo(context.Background(), &csi.NodeGetInfoRequest{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ni).NotTo(BeNil())
-		if ni.GetAccessibleTopology() == nil {
-			Skip("node does not report accessible topology")
-		}
-
-		By("creating a volume")
-		volReq := MakeCreateVolumeReq(sc, UniqueString("CreateSnapshot-topology-volume"))
-		volReq.AccessibilityRequirements = &csi.TopologyRequirement{
-			Requisite: []*csi.Topology{ni.GetAccessibleTopology()},
-		}
-		volume := r.MustCreateVolume(context.Background(), volReq)
-
-		By("creating a snapshot constrained to the node's topology")
-		snapReq := MakeCreateSnapshotReq(sc, UniqueString("CreateSnapshot-topology-snapshot"), volume.GetVolume().GetVolumeId())
-		snapReq.AccessibilityRequirements = &csi.TopologyRequirement{
-			Requisite: []*csi.Topology{ni.GetAccessibleTopology()},
-			Preferred: []*csi.Topology{ni.GetAccessibleTopology()},
-		}
-
-		snap := r.MustCreateSnapshot(context.Background(), snapReq)
-
-		// accessible_topology is optional in the response, but if the driver
-		// reports it, every returned topology must be one of the requested
-		// requisite topologies.
-		for _, topo := range snap.GetSnapshot().GetAccessibleTopology() {
-			Expect(topo).To(Equal(ni.GetAccessibleTopology()))
-		}
 	})
 })
 
@@ -1609,74 +1486,6 @@ var _ = DescribeSanity("ModifyVolume [Controller Server]", func(sc *TestContext)
 		}
 		rsp, err := r.ControllerModifyVolume(context.Background(), modifyReq)
 		ExpectErrorCode(rsp, err, codes.InvalidArgument)
-	})
-})
-
-var _ = DescribeSanity("ControllerGetVolumeHealth [Controller Server]", func(sc *TestContext) {
-	var r *Resources
-
-	BeforeEach(func() {
-		r = &Resources{
-			Context:          sc,
-			ControllerClient: csi.NewControllerClient(sc.ControllerConn),
-			NodeClient:       csi.NewNodeClient(sc.Conn),
-		}
-		if !isControllerCapabilitySupported(r, csi.ControllerServiceCapability_RPC_GET_VOLUME_HEALTH) {
-			Skip("ControllerGetVolumeHealth not supported")
-		}
-	})
-
-	AfterEach(func() {
-		r.Cleanup()
-	})
-
-	It("should fail when no volume id is provided", func() {
-		rsp, err := r.ControllerGetVolumeHealth(
-			context.Background(),
-			&csi.ControllerGetVolumeHealthRequest{})
-		ExpectErrorCode(rsp, err, codes.InvalidArgument)
-	})
-
-	It("should return health for a valid volume", func() {
-		name := UniqueString("sanity-controller-get-volume-health")
-		vol := r.MustCreateVolume(context.Background(), MakeCreateVolumeReq(sc, name))
-
-		rsp, err := r.ControllerGetVolumeHealth(
-			context.Background(),
-			&csi.ControllerGetVolumeHealthRequest{
-				VolumeId: vol.GetVolume().GetVolumeId(),
-			})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(rsp).NotTo(BeNil())
-		Expect(rsp.GetVolumeHealth()).NotTo(BeNil())
-		Expect(rsp.GetVolumeHealth().GetVolumeId()).To(Equal(vol.GetVolume().GetVolumeId()))
-	})
-})
-
-var _ = DescribeSanity("ControllerListVolumeHealth [Controller Server]", func(sc *TestContext) {
-	var r *Resources
-
-	BeforeEach(func() {
-		r = &Resources{
-			Context:          sc,
-			ControllerClient: csi.NewControllerClient(sc.ControllerConn),
-			NodeClient:       csi.NewNodeClient(sc.Conn),
-		}
-		if !isControllerCapabilitySupported(r, csi.ControllerServiceCapability_RPC_LIST_VOLUME_HEALTH) {
-			Skip("ControllerListVolumeHealth not supported")
-		}
-	})
-
-	AfterEach(func() {
-		r.Cleanup()
-	})
-
-	It("should return appropriate response", func() {
-		rsp, err := r.ControllerListVolumeHealth(
-			context.Background(),
-			&csi.ControllerListVolumeHealthRequest{})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(rsp).NotTo(BeNil())
 	})
 })
 

@@ -18,7 +18,6 @@ package filesystem
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -66,7 +65,7 @@ func (w *fsnotifyWatcher) Init(eventHandler FSEventHandler, errorHandler FSError
 	var err error
 	w.watcher, err = fsnotify.NewWatcher()
 	if err != nil {
-		return fmt.Errorf("fsnotify watcher init: %w", err)
+		return err
 	}
 
 	w.eventHandler = eventHandler

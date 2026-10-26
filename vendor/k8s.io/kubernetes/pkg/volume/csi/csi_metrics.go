@@ -96,7 +96,6 @@ type MetricsManager struct {
 
 // NewCSIMetricsManager creates a CSIMetricsManager object
 func NewCSIMetricsManager(driverName string) *MetricsManager {
-	volumeutil.RegisterMetrics()
 	cmm := MetricsManager{
 		driverName: driverName,
 	}

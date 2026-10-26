@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/json"
-	"k8s.io/component-helpers/scheduling/corev1/nodeaffinity"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/daemon/util"
@@ -149,10 +148,6 @@ func (dsc *DaemonSetsController) rollingUpdate(ctx context.Context, ds *apps.Dae
 	var numSurge int
 	var numAvailable int
 
-	// The daemon pod tolerations and the parsed required node affinity are
-	// the same for every node; build them once instead of once per node.
-	tolerations := daemonPodTolerations(ds)
-	requiredNodeAffinity := nodeaffinity.NewRequiredNodeAffinity(ds.Spec.Template.Spec.NodeSelector, ds.Spec.Template.Spec.Affinity)
 	for nodeName, pods := range nodeToDaemonPods {
 		newPod, oldPod, ok := findUpdatedPodsOnNode(ds, pods, hash)
 		if !ok {
@@ -184,7 +179,7 @@ func (dsc *DaemonSetsController) rollingUpdate(ctx context.Context, ds *apps.Dae
 				if err != nil {
 					return fmt.Errorf("couldn't get node for nodeName %q: %v", nodeName, err)
 				}
-				if shouldRun, _ := nodeShouldRunDaemonPod(logger, node, ds, tolerations, requiredNodeAffinity); !shouldRun {
+				if shouldRun, _ := NodeShouldRunDaemonPod(logger, node, ds); !shouldRun {
 					logger.V(5).Info("DaemonSet pod on node is not available and does not match scheduling constraints, remove old pod", "daemonset", klog.KObj(ds), "node", nodeName, "oldPod", klog.KObj(oldPod))
 					oldPodsToDelete = append(oldPodsToDelete, oldPod.Name)
 					continue
@@ -201,7 +196,7 @@ func (dsc *DaemonSetsController) rollingUpdate(ctx context.Context, ds *apps.Dae
 				if err != nil {
 					return fmt.Errorf("couldn't get node for nodeName %q: %v", nodeName, err)
 				}
-				if shouldRun, _ := nodeShouldRunDaemonPod(logger, node, ds, tolerations, requiredNodeAffinity); !shouldRun {
+				if shouldRun, _ := NodeShouldRunDaemonPod(logger, node, ds); !shouldRun {
 					shouldNotRunPodsToDelete = append(shouldNotRunPodsToDelete, oldPod.Name)
 					continue
 				}
@@ -589,11 +584,9 @@ func (dsc *DaemonSetsController) snapshot(ctx context.Context, ds *apps.DaemonSe
 func (dsc *DaemonSetsController) updatedDesiredNodeCounts(ctx context.Context, ds *apps.DaemonSet, nodeList []*v1.Node, nodeToDaemonPods map[string][]*v1.Pod) (int, int, int, error) {
 	var desiredNumberScheduled int
 	logger := klog.FromContext(ctx)
-	tolerations := daemonPodTolerations(ds)
-	requiredNodeAffinity := nodeaffinity.NewRequiredNodeAffinity(ds.Spec.Template.Spec.NodeSelector, ds.Spec.Template.Spec.Affinity)
 	for i := range nodeList {
 		node := nodeList[i]
-		wantToRun, _ := nodeShouldRunDaemonPod(logger, node, ds, tolerations, requiredNodeAffinity)
+		wantToRun, _ := NodeShouldRunDaemonPod(logger, node, ds)
 		if !wantToRun {
 			continue
 		}

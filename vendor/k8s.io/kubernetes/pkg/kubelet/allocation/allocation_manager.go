@@ -25,7 +25,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -38,6 +37,7 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/kubelet/allocation/state"
 	"k8s.io/kubernetes/pkg/kubelet/config"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
 	"k8s.io/kubernetes/pkg/kubelet/lifecycle"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
@@ -74,11 +74,15 @@ type Manager interface {
 	UpdatePodFromAllocation(pod *v1.Pod) (*v1.Pod, bool)
 
 	// SetAllocatedResources checkpoints the resources allocated to a pod's containers.
-	SetAllocatedResources(logger klog.Logger, allocatedPod *v1.Pod) error
+	SetAllocatedResources(allocatedPod *v1.Pod) error
 
 	// AddPodAdmitHandlers adds the admit handlers to the allocation manager.
 	// TODO: See if we can remove this and just add them in the allocation manager constructor.
 	AddPodAdmitHandlers(handlers lifecycle.PodAdmitHandlers)
+
+	// SetContainerRuntime sets the allocation manager's container runtime.
+	// TODO: See if we can remove this and just add it in the allocation manager constructor.
+	SetContainerRuntime(runtime kubecontainer.Runtime)
 
 	// AddPod checks if a pod can be admitted. If so, it admits the pod and updates the allocation.
 	// The function returns a boolean value indicating whether the pod
@@ -86,10 +90,10 @@ type Manager interface {
 	// the pod cannot be admitted.
 	// allocatedPods should represent the pods that have already been admitted, along with their
 	// admitted (allocated) resources.
-	AddPod(ctx context.Context, activePods []*v1.Pod, pod *v1.Pod) (ok bool, reason, message string)
+	AddPod(activePods []*v1.Pod, pod *v1.Pod) (ok bool, reason, message string)
 
 	// RemovePod removes any stored state for the given pod UID.
-	RemovePod(logger klog.Logger, uid types.UID)
+	RemovePod(uid types.UID)
 
 	// RemoveOrphanedPods removes the stored state for any pods not included in the set of remaining pods.
 	RemoveOrphanedPods(remainingPods sets.Set[types.UID])
@@ -99,30 +103,25 @@ type Manager interface {
 	Run(ctx context.Context)
 
 	// PushPendingResize queues a pod with a pending resize request for later reevaluation.
-	PushPendingResize(logger klog.Logger, uid types.UID)
+	PushPendingResize(uid types.UID)
 
 	// HasPendingResizes returns whether there are currently any pending resizes.
 	HasPendingResizes() bool
 
 	// RetryPendingResizes retries all pending resizes.
-	RetryPendingResizes(ctx context.Context, trigger string)
-
-	// HasPodAllocatedResources returns whether a pod has been allocated resources.
-	HasPodAllocatedResources(podUID types.UID) bool
-
-	// GetAllocatedPods returns all active pods with their allocated resources.
-	GetAllocatedPods() []*v1.Pod
+	RetryPendingResizes(trigger string)
 }
 
 type manager struct {
 	allocated state.State
 
-	admitHandlers lifecycle.PodAdmitHandlers
-	statusManager status.Manager
-	sourcesReady  config.SourcesReady
+	admitHandlers    lifecycle.PodAdmitHandlers
+	containerRuntime kubecontainer.Runtime
+	statusManager    status.Manager
+	sourcesReady     config.SourcesReady
 
 	ticker         *time.Ticker
-	triggerPodSync func(context.Context, *v1.Pod)
+	triggerPodSync func(pod *v1.Pod)
 	getActivePods  func() []*v1.Pod
 	getPodByUID    func(types.UID) (*v1.Pod, bool)
 
@@ -134,13 +133,15 @@ type manager struct {
 
 func NewManager(checkpointDirectory string,
 	statusManager status.Manager,
-	triggerPodSync func(context.Context, *v1.Pod),
+	triggerPodSync func(pod *v1.Pod),
 	getActivePods func() []*v1.Pod,
 	getPodByUID func(types.UID) (*v1.Pod, bool),
 	sourcesReady config.SourcesReady,
 	recorder record.EventRecorderLogger,
-	logger klog.Logger,
 ) Manager {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
 	return &manager{
 		allocated: newStateImpl(logger, checkpointDirectory, allocatedPodsStateFile),
 
@@ -161,7 +162,7 @@ func newStateImpl(logger klog.Logger, checkpointDirectory, checkpointName string
 		return state.NewNoopStateCheckpoint()
 	}
 
-	stateImpl, err := state.NewStateCheckpoint(logger, checkpointDirectory, checkpointName)
+	stateImpl, err := state.NewStateCheckpoint(checkpointDirectory, checkpointName)
 	if err != nil {
 		// This is a critical, non-recoverable failure.
 		logger.Error(err, "Failed to initialize allocation checkpoint manager",
@@ -175,16 +176,15 @@ func newStateImpl(logger klog.Logger, checkpointDirectory, checkpointName string
 // NewInMemoryManager returns an allocation manager that doesn't persist state.
 // For testing purposes only!
 func NewInMemoryManager(
-	logger klog.Logger,
 	statusManager status.Manager,
-	triggerPodSync func(context.Context, *v1.Pod),
+	triggerPodSync func(pod *v1.Pod),
 	getActivePods func() []*v1.Pod,
 	getPodByUID func(types.UID) (*v1.Pod, bool),
 	sourcesReady config.SourcesReady,
 	recorder record.EventRecorderLogger,
 ) Manager {
 	return &manager{
-		allocated: state.NewStateMemory(logger, nil),
+		allocated: state.NewStateMemory(nil),
 
 		statusManager: statusManager,
 		admitHandlers: lifecycle.PodAdmitHandlers{},
@@ -205,7 +205,7 @@ func (m *manager) Run(ctx context.Context) {
 		for {
 			select {
 			case <-m.ticker.C:
-				successfulResizes := m.retryPendingResizes(ctx, triggerReasonPeriodic)
+				successfulResizes := m.retryPendingResizes(logger, triggerReasonPeriodic)
 				for _, po := range successfulResizes {
 					logger.Info("Successfully retried resize after timeout", "pod", klog.KObj(po))
 				}
@@ -217,12 +217,14 @@ func (m *manager) Run(ctx context.Context) {
 	}()
 }
 
-func (m *manager) RetryPendingResizes(ctx context.Context, trigger string) {
-	m.retryPendingResizes(ctx, trigger)
+func (m *manager) RetryPendingResizes(trigger string) {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
+	m.retryPendingResizes(logger, trigger)
 }
 
-func (m *manager) retryPendingResizes(ctx context.Context, trigger string) []*v1.Pod {
-	logger := klog.FromContext(ctx)
+func (m *manager) retryPendingResizes(logger klog.Logger, trigger string) []*v1.Pod {
 	m.allocationMutex.Lock()
 	defer m.allocationMutex.Unlock()
 
@@ -248,7 +250,7 @@ func (m *manager) retryPendingResizes(ctx context.Context, trigger string) []*v1
 		oldResizeStatus := m.statusManager.GetPodResizeConditions(uid)
 		isDeferred := m.statusManager.IsPodResizeDeferred(uid)
 
-		resizeAllocated, err := m.handlePodResourcesResize(ctx, pod)
+		resizeAllocated, err := m.handlePodResourcesResize(logger, pod)
 		switch {
 		case err != nil:
 			logger.Error(err, "Failed to handle pod resources resize", "pod", klog.KObj(pod))
@@ -269,7 +271,7 @@ func (m *manager) retryPendingResizes(ctx context.Context, trigger string) []*v1
 		// If the pod resize status has changed, we need to update the pod status.
 		newResizeStatus := m.statusManager.GetPodResizeConditions(uid)
 		if resizeAllocated || !apiequality.Semantic.DeepEqual(oldResizeStatus, newResizeStatus) {
-			m.triggerPodSync(ctx, pod)
+			m.triggerPodSync(pod)
 		}
 	}
 
@@ -277,7 +279,10 @@ func (m *manager) retryPendingResizes(ctx context.Context, trigger string) []*v1
 	return successfulResizes
 }
 
-func (m *manager) PushPendingResize(logger klog.Logger, uid types.UID) {
+func (m *manager) PushPendingResize(uid types.UID) {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
 	m.allocationMutex.Lock()
 	defer m.allocationMutex.Unlock()
 
@@ -440,18 +445,14 @@ func updatePodFromAllocation(pod *v1.Pod, allocated state.PodResourceInfo) (*v1.
 
 	updated := false
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodLevelResourcesVerticalScaling) {
-		pod, updated = updatePodLevelResourcesFromAllocation(pod, allocated)
+		pAlloc := allocated.PodLevelResources
+		if !apiequality.Semantic.DeepEqual(pod.Spec.Resources, pAlloc) {
+			// Allocation differs from pod spec, retrieve the allocation
+			pod = pod.DeepCopy()
+			pod.Spec.Resources = pAlloc
+			updated = true
+		}
 	}
-	pod, updated = updateContainerResourcesFromAllocation(pod, allocated, updated)
-	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScalingMemoryBackedVolumes) {
-		pod, updated = updateEmptyDirVolumeLimitsFromAllocation(pod, allocated, updated)
-	}
-
-	return pod, updated
-}
-
-func updateContainerResourcesFromAllocation(pod *v1.Pod, allocated state.PodResourceInfo, alreadyUpdated bool) (*v1.Pod, bool) {
-	updated := alreadyUpdated
 	containerAlloc := func(c v1.Container) (v1.ResourceRequirements, bool) {
 		if cAlloc, ok := allocated.ContainerResources[c.Name]; ok {
 			if !apiequality.Semantic.DeepEqual(c.Resources, cAlloc) {
@@ -482,51 +483,15 @@ func updateContainerResourcesFromAllocation(pod *v1.Pod, allocated state.PodReso
 	return pod, updated
 }
 
-func updatePodLevelResourcesFromAllocation(pod *v1.Pod, allocated state.PodResourceInfo) (*v1.Pod, bool) {
-	pAlloc := allocated.PodLevelResources
-	if !apiequality.Semantic.DeepEqual(pod.Spec.Resources, pAlloc) {
-		// Allocation differs from pod spec, retrieve the allocation
-		pod = pod.DeepCopy()
-		pod.Spec.Resources = pAlloc
-		return pod, true
-	}
-	return pod, false
-}
-
-func updateEmptyDirVolumeLimitsFromAllocation(pod *v1.Pod, allocated state.PodResourceInfo, alreadyUpdated bool) (*v1.Pod, bool) {
-	updated := alreadyUpdated
-	for i, vol := range pod.Spec.Volumes {
-		if !VolHasMemoryBackedEmptyDirSizeLimit(&vol) {
-			continue
-		}
-		if alloc, ok := allocated.EmptyDirVolumeLimits[vol.Name]; ok {
-			if alloc.Cmp(*vol.EmptyDir.SizeLimit) != 0 {
-				if !updated {
-					pod = pod.DeepCopy()
-					updated = true
-				}
-				allocCopy := alloc.DeepCopy()
-				pod.Spec.Volumes[i].EmptyDir.SizeLimit = &allocCopy
-			}
-		}
-	}
-	return pod, updated
-}
-
-// HasPodAllocatedResources returns whether a pod has been allocated resources.
-func (m *manager) HasPodAllocatedResources(podUID types.UID) bool {
-	_, allocated := m.allocated.GetPodResourceInfo(podUID)
-	return allocated
-}
-
 // SetAllocatedResources checkpoints the resources allocated to a pod's containers
-func (m *manager) SetAllocatedResources(logger klog.Logger, pod *v1.Pod) error {
-	return m.allocated.SetPodResourceInfo(logger, pod.UID, ResourceInfoForPod(pod))
+func (m *manager) SetAllocatedResources(pod *v1.Pod) error {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
+	return m.allocated.SetPodResourceInfo(logger, pod.UID, allocationFromPod(pod))
 }
 
-// ResourceInfoForPod constructs a state.PodResourceInfo containing container resources,
-// memory-backed emptyDir volume limits, and pod-level resources for the given pod.
-func ResourceInfoForPod(pod *v1.Pod) state.PodResourceInfo {
+func allocationFromPod(pod *v1.Pod) state.PodResourceInfo {
 	var podAlloc state.PodResourceInfo
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodLevelResourcesVerticalScaling) && pod.Spec.Resources != nil {
 		podAlloc.PodLevelResources = pod.Spec.Resources.DeepCopy()
@@ -540,19 +505,6 @@ func ResourceInfoForPod(pod *v1.Pod) state.PodResourceInfo {
 		podAlloc.ContainerResources[container.Name] = alloc
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScalingMemoryBackedVolumes) {
-		for _, vol := range pod.Spec.Volumes {
-			if !VolHasMemoryBackedEmptyDirSizeLimit(&vol) {
-				continue
-			}
-			alloc := vol.EmptyDir.SizeLimit.DeepCopy()
-			if podAlloc.EmptyDirVolumeLimits == nil {
-				podAlloc.EmptyDirVolumeLimits = make(map[string]*resource.Quantity)
-			}
-			podAlloc.EmptyDirVolumeLimits[vol.Name] = &alloc
-		}
-	}
-
 	return podAlloc
 }
 
@@ -562,8 +514,14 @@ func (m *manager) AddPodAdmitHandlers(handlers lifecycle.PodAdmitHandlers) {
 	}
 }
 
-func (m *manager) AddPod(ctx context.Context, activePods []*v1.Pod, pod *v1.Pod) (bool, string, string) {
-	logger := klog.FromContext(ctx)
+func (m *manager) SetContainerRuntime(runtime kubecontainer.Runtime) {
+	m.containerRuntime = runtime
+}
+
+func (m *manager) AddPod(activePods []*v1.Pod, pod *v1.Pod) (bool, string, string) {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
 	m.allocationMutex.Lock()
 	defer m.allocationMutex.Unlock()
 
@@ -575,11 +533,11 @@ func (m *manager) AddPod(ctx context.Context, activePods []*v1.Pod, pod *v1.Pod)
 
 	// Check if we can admit the pod; if so, update the allocation.
 	allocatedPods := m.getAllocatedPods(activePods)
-	ok, reason, message := m.canAdmitPod(ctx, allocatedPods, pod, lifecycle.AddOperation)
+	ok, reason, message := m.canAdmitPod(logger, allocatedPods, pod, lifecycle.AddOperation)
 
 	if ok && utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 		// Checkpoint the resource values at which the Pod has been admitted or resized.
-		if err := m.SetAllocatedResources(logger, pod); err != nil {
+		if err := m.SetAllocatedResources(pod); err != nil {
 			// TODO(vinaykul,InPlacePodVerticalScaling): Can we recover from this in some way? Investigate
 			logger.Error(err, "SetPodAllocation failed", "pod", klog.KObj(pod))
 		}
@@ -588,8 +546,11 @@ func (m *manager) AddPod(ctx context.Context, activePods []*v1.Pod, pod *v1.Pod)
 	return ok, reason, message
 }
 
-func (m *manager) RemovePod(logger klog.Logger, uid types.UID) {
-	if err := m.allocated.RemovePod(logger, uid); err != nil {
+func (m *manager) RemovePod(uid types.UID) {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
+	if err := m.allocated.RemovePod(uid); err != nil {
 		// If the deletion fails, it will be retried by RemoveOrphanedPods, so we can safely ignore the error.
 		logger.V(3).Info("Failed to delete pod allocation", "podUID", uid, "err", err)
 	}
@@ -599,23 +560,22 @@ func (m *manager) RemoveOrphanedPods(remainingPods sets.Set[types.UID]) {
 	m.allocated.RemoveOrphanedPods(remainingPods)
 }
 
-func (m *manager) handlePodResourcesResize(ctx context.Context, pod *v1.Pod) (bool, error) {
-	logger := klog.FromContext(ctx)
+func (m *manager) handlePodResourcesResize(logger klog.Logger, pod *v1.Pod) (bool, error) {
 	_, updated := m.UpdatePodFromAllocation(pod)
 	if !updated {
 		// Desired resources == allocated resources. Pod allocation does not need to be updated.
-		m.statusManager.ClearPodResizePendingCondition(pod.UID, metrics.DeferredResizeResolutionReverted)
+		m.statusManager.ClearPodResizePendingCondition(pod.UID)
 		return false, nil
 	}
 
 	// Desired resources != allocated resources. Can we update the allocation to the desired resources?
-	fit, reason, message := m.canAdmitPod(ctx, m.getAllocatedPods(m.getActivePods()), pod, lifecycle.ResizeOperation)
+	fit, reason, message := m.canAdmitPod(logger, m.getAllocatedPods(m.getActivePods()), pod, lifecycle.ResizeOperation)
 	if fit {
 		// Update pod resource allocation checkpoint
-		if err := m.SetAllocatedResources(logger, pod); err != nil {
+		if err := m.SetAllocatedResources(pod); err != nil {
 			return false, err
 		}
-		m.statusManager.ClearPodResizePendingCondition(pod.UID, metrics.DeferredResizeResolutionAccepted)
+		m.statusManager.ClearPodResizePendingCondition(pod.UID)
 
 		// Clear any errors that may have been surfaced from a previous resize and update the
 		// generation of the resize in-progress condition.
@@ -648,15 +608,14 @@ func (m *manager) handlePodResourcesResize(ctx context.Context, pod *v1.Pod) (bo
 // the pod cannot be admitted.
 // allocatedPods should represent the pods that have already been admitted, along with their
 // admitted (allocated) resources.
-func (m *manager) canAdmitPod(ctx context.Context, allocatedPods []*v1.Pod, pod *v1.Pod, operation lifecycle.Operation) (bool, string, string) {
-	logger := klog.FromContext(ctx)
+func (m *manager) canAdmitPod(logger klog.Logger, allocatedPods []*v1.Pod, pod *v1.Pod, operation lifecycle.Operation) (bool, string, string) {
 	// Filter out the pod being evaluated.
 	allocatedPods = slices.DeleteFunc(allocatedPods, func(p *v1.Pod) bool { return p.UID == pod.UID })
 
 	// If any handler rejects, the pod is rejected.
 	attrs := &lifecycle.PodAdmitAttributes{Pod: pod, OtherPods: allocatedPods, Operation: operation}
 	for _, podAdmitHandler := range m.admitHandlers {
-		if result := podAdmitHandler.Admit(ctx, attrs); !result.Admit {
+		if result := podAdmitHandler.Admit(attrs); !result.Admit {
 			logger.Info("Pod admission denied", "podUID", attrs.Pod.UID, "pod", klog.KObj(attrs.Pod), "reason", result.Reason, "message", result.Message, "operation", operation)
 			return false, result.Reason, result.Message
 		}
@@ -670,20 +629,11 @@ func (m *manager) getAllocatedPods(activePods []*v1.Pod) []*v1.Pod {
 		return activePods
 	}
 
-	allocatedPods := make([]*v1.Pod, 0, len(activePods))
-	for _, pod := range activePods {
-		// Filter out pods that don't yet have an allocation, which will filter pods that
-		// are potentially going to be denied at admission.
-		if m.HasPodAllocatedResources(pod.UID) {
-			allocatedPod, _ := m.UpdatePodFromAllocation(pod)
-			allocatedPods = append(allocatedPods, allocatedPod)
-		}
+	allocatedPods := make([]*v1.Pod, len(activePods))
+	for i, pod := range activePods {
+		allocatedPods[i], _ = m.UpdatePodFromAllocation(pod)
 	}
 	return allocatedPods
-}
-
-func (m *manager) GetAllocatedPods() []*v1.Pod {
-	return m.getAllocatedPods(m.getActivePods())
 }
 
 func IsResizableContainer(container *v1.Container, containerType podutil.ContainerType) bool {
@@ -695,8 +645,4 @@ func IsResizableContainer(container *v1.Container, containerType podutil.Contain
 	default:
 		return false
 	}
-}
-
-func VolHasMemoryBackedEmptyDirSizeLimit(vol *v1.Volume) bool {
-	return vol != nil && vol.EmptyDir != nil && vol.EmptyDir.Medium == v1.StorageMediumMemory && vol.EmptyDir.SizeLimit != nil && !vol.EmptyDir.SizeLimit.IsZero()
 }
