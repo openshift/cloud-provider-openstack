@@ -179,3 +179,6 @@ replace (
 )
 
 replace golang.org/x/net => github.com/openshift-sustaining/net v0.35.0-sec.4
+
+// Keep the dependency compatible with the Go 1.19 toolchain used by this branch.
+replace golang.org/x/crypto => golang.org/x/crypto v0.17.0
