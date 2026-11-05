@@ -1,0 +1,4 @@
+-r requirements-runtime.txt
+
+# Keep the stub generator aligned with the runtime gRPC version.
+grpcio-tools==1.84.0

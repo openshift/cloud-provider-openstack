@@ -1,0 +1,4 @@
+# dnspython 2.9 accepts uv_build >=0.9.21,<0.13.0. Version 0.12.24
+# requires Rust 1.97, newer than the RHEL 10 Rust 1.92 toolchain tested
+# during the source-build experiment. Version 0.9.21 declares Rust 1.89.
+uv_build==0.9.21
