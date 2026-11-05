@@ -2,27 +2,36 @@ FROM registry.ci.openshift.org/ocp/5.1:base-rhel10 AS builder
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
-# Install build-time dependencies for Python wheel compilation and
-# gRPC stub generation.
+# Bound gRPC compiler parallelism on CI workers.
+ARG GRPC_PYTHON_BUILD_EXT_COMPILER_JOBS=2
+ENV GRPC_PYTHON_BUILD_EXT_COMPILER_JOBS=${GRPC_PYTHON_BUILD_EXT_COMPILER_JOBS}
+
+# Compile native extensions and source-only Python build backends.
 RUN dnf install -y --setopt=tsflags=nodocs \
     gcc \
+    gcc-c++ \
     python3-devel \
     python3-pip \
+    libffi-devel \
+    openssl-devel \
+    cargo \
+    rust \
+    pkgconf-pkg-config \
     && dnf clean all && rm -rf /var/cache/dnf/*
 
 WORKDIR /build
 
-# Build wheels for the gRPC stack (no RPM equivalent).
-# os-brick and its dependencies are installed as RPMs in the
-# runtime stage.
-COPY images/osbrick-sidecar/requirements-grpc.txt .
-RUN pip3 wheel --no-cache-dir --wheel-dir=/wheels -r requirements-grpc.txt
+# Build application packages, transitive dependencies, and isolated build
+# dependencies from source. Disable the cache to exclude downloaded wheels.
+COPY images/osbrick-sidecar/requirements-runtime.txt images/osbrick-sidecar/requirements-build.txt images/osbrick-sidecar/constraints-build.txt ./
+# RHEL's pip 23.3 propagates PIP_CONSTRAINT into isolated build environments.
+RUN PIP_CONSTRAINT=/build/constraints-build.txt python3 -m pip wheel \
+    --no-cache-dir --no-binary=:all: --wheel-dir=/wheels -r requirements-build.txt
 
-# Install grpcio-tools (builder only) so protoc is available for
-# stub generation.
-RUN pip3 install --no-cache-dir grpcio-tools==1.84.0
+# Install the generation toolchain without accessing an index.
+RUN python3 -m pip install --no-cache-dir --no-index --only-binary=:all: \
+    --find-links=/wheels -r requirements-build.txt
 
-# Generate Python gRPC stubs from the proto file.
 COPY proto/osbrick/v1/connector.proto /proto/connector.proto
 RUN mkdir -p /build/gen && touch /build/gen/__init__.py && python3 -m grpc_tools.protoc \
     --proto_path=/proto \
@@ -33,45 +42,52 @@ RUN mkdir -p /build/gen && touch /build/gen/__init__.py && python3 -m grpc_tools
 
 FROM registry.ci.openshift.org/ocp/5.1:base-rhel10
 
-ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV PATH="/opt/venv/bin:${PATH}"
 
-# Install runtime dependencies for storage operations.
-# TODO: once the RHOSP and RHCEPH repos are configured in the
-# openshift/release CI operator config, uncomment python3-os-brick
-# (which pulls in oslo.*, ceph bindings, etc. as RPM dependencies).
+# Install the Python interpreter, native libraries, and storage utilities.
 RUN dnf update -y && \
     dnf install -y --setopt=tsflags=nodocs --setopt=install_weak_deps=0 \
     python3 \
     python3-pip \
+    libstdc++ \
+    libffi \
+    openssl-libs \
     iscsi-initiator-utils \
     device-mapper-multipath \
     sg3_utils \
     sysfsutils \
     sudo \
-    # python3-os-brick \
     && dnf clean all && rm -rf /var/cache/dnf/*
 
-# Install gRPC wheels from the builder stage. These have no RPM
-# equivalent and must come from pip.
+# Install runtime packages into an isolated environment from source-built wheels.
+# Keep pip, compilers, and grpcio-tools out of the runtime environment.
 COPY --from=builder /wheels /tmp/wheels
-COPY images/osbrick-sidecar/requirements-grpc.txt /tmp/requirements-grpc.txt
-RUN pip3 install --no-cache-dir --no-index --find-links=/tmp/wheels \
-    -r /tmp/requirements-grpc.txt \
+COPY images/osbrick-sidecar/requirements-runtime.txt /tmp/requirements-runtime.txt
+RUN python3 -m venv --without-pip /opt/venv \
+    && /usr/bin/python3 -m pip --python /opt/venv install \
+    --no-cache-dir --no-index --only-binary=:all: --find-links=/tmp/wheels \
+    -r /tmp/requirements-runtime.txt \
+    && /usr/bin/python3 -m pip --python /opt/venv check \
+    && /usr/bin/python3 -m pip --python /opt/venv freeze --all \
     && dnf remove -y python3-pip \
     && dnf clean all \
-    && rm -rf /tmp/wheels /tmp/requirements-grpc.txt /var/cache/dnf/*
+    && rm -rf /tmp/wheels /tmp/requirements-runtime.txt /var/cache/dnf/*
 
 WORKDIR /app
 
-# Copy generated gRPC stubs.
+# Copy generated stubs last so checked-in stubs cannot overwrite them.
+COPY sidecar/os_brick_grpc/ /app/os_brick_grpc/
 COPY --from=builder /build/gen/ /app/os_brick_grpc/gen/
 
-# Copy application source.
-COPY sidecar/os_brick_grpc/ /app/os_brick_grpc/
-
-# Entrypoint wrapper that symlinks host /run subdirectories into /run
-# so os-brick tools find them, then starts the gRPC server.
+# Symlink host /run subdirectories into /run before starting the server.
 COPY sidecar/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+# oslo.privsep invokes "sudo privsep-helper". Expose the venv entry point
+# in sudo's system search path without using system Python packages.
+RUN chmod +x /app/entrypoint.sh \
+    && ln -s /opt/venv/bin/privsep-helper /usr/bin/privsep-helper
+
+# Fail the CI image build on missing native libraries or gRPC startup failures.
+COPY images/osbrick-sidecar/smoke-test.py /tmp/smoke-test.py
+RUN PYTHONPATH=/app python3 /tmp/smoke-test.py && rm /tmp/smoke-test.py
 
 ENTRYPOINT ["/app/entrypoint.sh"]

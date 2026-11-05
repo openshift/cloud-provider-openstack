@@ -1,0 +1,6 @@
+# Runtime pins aligned with sidecar/requirements.txt.
+# All Python dependencies are built from source in the builder stage.
+grpcio==1.84.0
+grpcio-health-checking==1.84.0
+protobuf==7.36.2
+os-brick==7.1.1
