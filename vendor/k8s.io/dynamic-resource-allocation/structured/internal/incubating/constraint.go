@@ -37,7 +37,8 @@ type distinctAttributeConstraint struct {
 	requestNames  sets.Set[string]
 	attributeName resourceapi.FullyQualifiedName
 
-	attributes []*resourceapi.DeviceAttribute
+	attributes map[string]resourceapi.DeviceAttribute
+	numDevices int
 }
 
 func (m *distinctAttributeConstraint) add(requestName, subRequestName string, device *draapi.Device, deviceID DeviceID) bool {
@@ -53,13 +54,21 @@ func (m *distinctAttributeConstraint) add(requestName, subRequestName string, de
 		return false
 	}
 
+	if m.numDevices == 0 {
+		// The first device can always get picked.
+		m.attributes[requestName] = *attribute
+		m.numDevices = 1
+		m.logger.V(7).Info("First attribute added")
+		return true
+	}
+
 	if !m.matchesAttribute(*attribute) {
 		m.logger.V(7).Info("Constraint not satisfied, has some duplicated attributes")
 		return false
 	}
-
-	m.attributes = append(m.attributes, attribute)
-	m.logger.V(7).Info("Constraint satisfied by device", "device", deviceID, "numDevices", len(m.attributes))
+	m.attributes[requestName] = *attribute
+	m.numDevices++
+	m.logger.V(7).Info("Constraint satisfied by device", "device", deviceID, "numDevices", m.numDevices)
 	return true
 
 }
@@ -69,9 +78,9 @@ func (m *distinctAttributeConstraint) remove(requestName, subRequestName string,
 		// Device not affected by constraint.
 		return
 	}
-
-	m.attributes = m.attributes[:len(m.attributes)-1]
-	m.logger.V(7).Info("Device removed from constraint set", "device", deviceID, "numDevices", len(m.attributes))
+	delete(m.attributes, requestName)
+	m.numDevices--
+	m.logger.V(7).Info("Device removed from constraint set", "device", deviceID, "numDevices", m.numDevices)
 }
 
 func (m *distinctAttributeConstraint) matches(requestName, subRequestName string) bool {

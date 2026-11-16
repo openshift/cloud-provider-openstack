@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -80,9 +79,6 @@ type RuntimeHelper interface {
 	// OnPodSandboxReady callback is invoked after pod sandbox, networking, volume are ready.
 	// This is used to update the PodReadyToStartContainers condition.
 	OnPodSandboxReady(ctx context.Context, pod *v1.Pod) error
-
-	// ResizeEphemeralVolume directly triggers a resize of the specified volume.
-	ResizeEphemeralVolume(pod *v1.Pod, volumeName string, newSize *resource.Quantity) error
 }
 
 // ShouldContainerBeRestarted checks whether a container needs to be restarted.
@@ -329,7 +325,6 @@ func (irecorder *innerEventRecorder) Eventf(object runtime.Object, eventtype, re
 
 func (irecorder *innerEventRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
 	if ref, ok := irecorder.shouldRecordEvent(object); ok {
-		//nolint:forbidigo // Legacy usage
 		irecorder.recorder.AnnotatedEventf(ref, annotations, eventtype, reason, messageFmt, args...)
 	}
 

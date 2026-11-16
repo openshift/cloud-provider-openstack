@@ -50,36 +50,20 @@ func NewCache(maxCacheEntries int, features Features) *Cache {
 //
 // Cost estimation is disabled.
 func (c *Cache) GetOrCompile(expression string) CompilationResult {
-	return c.getOrCompile(expression, "selector", Options{DisableCostEstimation: true})
-}
-
-// GetOrCompileDerivedAttribute checks whether the cache already has a
-// compilation result for a derived attribute expression and returns that
-// if available. Otherwise it compiles, stores successful results and returns
-// the new result with DerivedAttribute compilation option enabled.
-func (c *Cache) GetOrCompileDerivedAttribute(expression string) CompilationResult {
-	return c.getOrCompile(expression, "derived", Options{
-		DisableCostEstimation: true,
-		DerivedAttribute:      true,
-	})
-}
-
-func (c *Cache) getOrCompile(expression string, cacheScope string, opts Options) CompilationResult {
-	cacheKey := cacheScope + ":" + expression
 	// Compiling a CEL expression is expensive enough that it is cheaper
 	// to lock a mutex than doing it several times in parallel.
-	c.compileMutex.LockKey(cacheKey)
+	c.compileMutex.LockKey(expression)
 	//nolint:errcheck // Only returns an error for unknown keys, which isn't the case here.
-	defer c.compileMutex.UnlockKey(cacheKey)
+	defer c.compileMutex.UnlockKey(expression)
 
-	cached := c.get(cacheKey)
+	cached := c.get(expression)
 	if cached != nil {
 		return *cached
 	}
 
-	expr := c.compiler.CompileCELExpression(expression, opts)
+	expr := c.compiler.CompileCELExpression(expression, Options{DisableCostEstimation: true})
 	if expr.Error == nil {
-		c.add(cacheKey, &expr)
+		c.add(expression, &expr)
 	}
 	return expr
 }
@@ -98,4 +82,23 @@ func (c *Cache) get(expression string) *CompilationResult {
 		return nil
 	}
 	return expr.(*CompilationResult)
+}
+
+func (c *Cache) Check(expression string) CompilationResult {
+	// Compiling a CEL expression is expensive enough that it is cheaper
+	// to lock a mutex than doing it several times in parallel.
+	c.compileMutex.LockKey(expression)
+	//nolint:errcheck // Only returns an error for unknown keys, which isn't the case here.
+	defer c.compileMutex.UnlockKey(expression)
+
+	cached := c.get(expression)
+	if cached != nil {
+		return *cached
+	}
+
+	expr := c.compiler.CompileCELExpression(expression, Options{DisableCostEstimation: true})
+	if expr.Error == nil {
+		c.add(expression, &expr)
+	}
+	return expr
 }

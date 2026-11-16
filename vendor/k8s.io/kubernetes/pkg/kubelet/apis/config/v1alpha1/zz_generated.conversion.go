@@ -188,7 +188,8 @@ func Convert_config_CredentialProviderConfig_To_v1alpha1_CredentialProviderConfi
 }
 
 func autoConvert_v1alpha1_ExecEnvVar_To_config_ExecEnvVar(in *configv1alpha1.ExecEnvVar, out *config.ExecEnvVar, s conversion.Scope) error {
-	*out = *(*config.ExecEnvVar)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Value = in.Value
 	return nil
 }
 
@@ -198,7 +199,8 @@ func Convert_v1alpha1_ExecEnvVar_To_config_ExecEnvVar(in *configv1alpha1.ExecEnv
 }
 
 func autoConvert_config_ExecEnvVar_To_v1alpha1_ExecEnvVar(in *config.ExecEnvVar, out *configv1alpha1.ExecEnvVar, s conversion.Scope) error {
-	*out = *(*configv1alpha1.ExecEnvVar)(unsafe.Pointer(in))
+	out.Name = in.Name
+	out.Value = in.Value
 	return nil
 }
 
@@ -208,7 +210,9 @@ func Convert_config_ExecEnvVar_To_v1alpha1_ExecEnvVar(in *config.ExecEnvVar, out
 }
 
 func autoConvert_v1alpha1_ImagePullCredentials_To_config_ImagePullCredentials(in *configv1alpha1.ImagePullCredentials, out *config.ImagePullCredentials, s conversion.Scope) error {
-	*out = *(*config.ImagePullCredentials)(unsafe.Pointer(in))
+	out.KubernetesSecrets = *(*[]config.ImagePullSecret)(unsafe.Pointer(&in.KubernetesSecrets))
+	out.KubernetesServiceAccounts = *(*[]config.ImagePullServiceAccount)(unsafe.Pointer(&in.KubernetesServiceAccounts))
+	out.NodePodsAccessible = in.NodePodsAccessible
 	return nil
 }
 
@@ -218,7 +222,9 @@ func Convert_v1alpha1_ImagePullCredentials_To_config_ImagePullCredentials(in *co
 }
 
 func autoConvert_config_ImagePullCredentials_To_v1alpha1_ImagePullCredentials(in *config.ImagePullCredentials, out *configv1alpha1.ImagePullCredentials, s conversion.Scope) error {
-	*out = *(*configv1alpha1.ImagePullCredentials)(unsafe.Pointer(in))
+	out.KubernetesSecrets = *(*[]configv1alpha1.ImagePullSecret)(unsafe.Pointer(&in.KubernetesSecrets))
+	out.KubernetesServiceAccounts = *(*[]configv1alpha1.ImagePullServiceAccount)(unsafe.Pointer(&in.KubernetesServiceAccounts))
+	out.NodePodsAccessible = in.NodePodsAccessible
 	return nil
 }
 
@@ -248,7 +254,10 @@ func Convert_config_ImagePullIntent_To_v1alpha1_ImagePullIntent(in *config.Image
 }
 
 func autoConvert_v1alpha1_ImagePullSecret_To_config_ImagePullSecret(in *configv1alpha1.ImagePullSecret, out *config.ImagePullSecret, s conversion.Scope) error {
-	*out = *(*config.ImagePullSecret)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
+	out.CredentialHash = in.CredentialHash
 	return nil
 }
 
@@ -258,7 +267,10 @@ func Convert_v1alpha1_ImagePullSecret_To_config_ImagePullSecret(in *configv1alph
 }
 
 func autoConvert_config_ImagePullSecret_To_v1alpha1_ImagePullSecret(in *config.ImagePullSecret, out *configv1alpha1.ImagePullSecret, s conversion.Scope) error {
-	*out = *(*configv1alpha1.ImagePullSecret)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
+	out.CredentialHash = in.CredentialHash
 	return nil
 }
 
@@ -268,7 +280,9 @@ func Convert_config_ImagePullSecret_To_v1alpha1_ImagePullSecret(in *config.Image
 }
 
 func autoConvert_v1alpha1_ImagePullServiceAccount_To_config_ImagePullServiceAccount(in *configv1alpha1.ImagePullServiceAccount, out *config.ImagePullServiceAccount, s conversion.Scope) error {
-	*out = *(*config.ImagePullServiceAccount)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
 	return nil
 }
 
@@ -278,7 +292,9 @@ func Convert_v1alpha1_ImagePullServiceAccount_To_config_ImagePullServiceAccount(
 }
 
 func autoConvert_config_ImagePullServiceAccount_To_v1alpha1_ImagePullServiceAccount(in *config.ImagePullServiceAccount, out *configv1alpha1.ImagePullServiceAccount, s conversion.Scope) error {
-	*out = *(*configv1alpha1.ImagePullServiceAccount)(unsafe.Pointer(in))
+	out.UID = in.UID
+	out.Namespace = in.Namespace
+	out.Name = in.Name
 	return nil
 }
 

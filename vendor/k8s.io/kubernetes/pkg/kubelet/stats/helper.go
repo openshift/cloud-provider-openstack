@@ -20,7 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	cadvisorapi "github.com/google/cadvisor/lib/model"
+	cadvisorapiv1 "github.com/google/cadvisor/info/v1"
+	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -37,7 +38,7 @@ import (
 // is not reliable.
 const defaultNetworkInterfaceName = "eth0"
 
-func cadvisorInfoToCPUandMemoryStats(info *cadvisorapi.ContainerInfo) (*statsapi.CPUStats, *statsapi.MemoryStats) {
+func cadvisorInfoToCPUandMemoryStats(info *cadvisorapiv2.ContainerInfo) (*statsapi.CPUStats, *statsapi.MemoryStats) {
 	cstat, found := latestContainerStats(info)
 	if !found {
 		return nil, nil
@@ -90,7 +91,7 @@ func cadvisorInfoToCPUandMemoryStats(info *cadvisorapi.ContainerInfo) (*statsapi
 
 // cadvisorInfoToContainerStats returns the statsapi.ContainerStats converted
 // from the container and filesystem info.
-func cadvisorInfoToContainerStats(logger klog.Logger, name string, info *cadvisorapi.ContainerInfo, rootFs, imageFs *cadvisorapi.FsInfo) *statsapi.ContainerStats {
+func cadvisorInfoToContainerStats(logger klog.Logger, name string, info *cadvisorapiv2.ContainerInfo, rootFs, imageFs *cadvisorapiv2.FsInfo) *statsapi.ContainerStats {
 	result := &statsapi.ContainerStats{
 		StartTime: metav1.NewTime(info.Spec.CreationTime),
 		Name:      name,
@@ -121,16 +122,7 @@ func cadvisorInfoToContainerStats(logger klog.Logger, name string, info *cadviso
 		result.Rootfs = buildRootfsStats(cstat, imageFs)
 	}
 
-	// One filesystem device populates the rollup; multi-device containers are skipped.
-	var cfs *cadvisorapi.FilesystemSummary
-	if len(cstat.Filesystem) == 1 {
-		fsStat := cstat.Filesystem[0]
-		cfs = &cadvisorapi.FilesystemSummary{
-			BaseUsageBytes:  &fsStat.BaseUsage,
-			TotalUsageBytes: &fsStat.Usage,
-			InodeUsage:      &fsStat.Inodes,
-		}
-	}
+	cfs := cstat.Filesystem
 	if cfs != nil {
 		if cfs.BaseUsageBytes != nil {
 			if result.Rootfs != nil {
@@ -166,7 +158,7 @@ func cadvisorInfoToContainerStats(logger klog.Logger, name string, info *cadviso
 
 // cadvisorInfoToContainerCPUAndMemoryStats returns the statsapi.ContainerStats converted
 // from the container and filesystem info.
-func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapi.ContainerInfo) *statsapi.ContainerStats {
+func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapiv2.ContainerInfo) *statsapi.ContainerStats {
 	result := &statsapi.ContainerStats{
 		StartTime: metav1.NewTime(info.Spec.CreationTime),
 		Name:      name,
@@ -180,7 +172,7 @@ func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapi.Con
 	return result
 }
 
-func cadvisorInfoToProcessStats(info *cadvisorapi.ContainerInfo) *statsapi.ProcessStats {
+func cadvisorInfoToProcessStats(info *cadvisorapiv2.ContainerInfo) *statsapi.ProcessStats {
 	cstat, found := latestContainerStats(info)
 	if !found || cstat.Processes == nil {
 		return nil
@@ -216,7 +208,7 @@ func mergeProcessStats(first *statsapi.ProcessStats, second *statsapi.ProcessSta
 
 // cadvisorInfoToNetworkStats returns the statsapi.NetworkStats converted from
 // the container info from cadvisor.
-func cadvisorInfoToNetworkStats(info *cadvisorapi.ContainerInfo) *statsapi.NetworkStats {
+func cadvisorInfoToNetworkStats(info *cadvisorapiv2.ContainerInfo) *statsapi.NetworkStats {
 	if !info.Spec.HasNetwork {
 		return nil
 	}
@@ -255,10 +247,10 @@ func cadvisorInfoToNetworkStats(info *cadvisorapi.ContainerInfo) *statsapi.Netwo
 
 // cadvisorInfoToUserDefinedMetrics returns the statsapi.UserDefinedMetric
 // converted from the container info from cadvisor.
-func cadvisorInfoToUserDefinedMetrics(logger klog.Logger, info *cadvisorapi.ContainerInfo) []statsapi.UserDefinedMetric {
+func cadvisorInfoToUserDefinedMetrics(logger klog.Logger, info *cadvisorapiv2.ContainerInfo) []statsapi.UserDefinedMetric {
 	type specVal struct {
 		ref     statsapi.UserDefinedMetricDescriptor
-		valType cadvisorapi.DataType
+		valType cadvisorapiv1.DataType
 		time    time.Time
 		value   float64
 	}
@@ -287,7 +279,7 @@ func cadvisorInfoToUserDefinedMetrics(logger klog.Logger, info *cadvisorapi.Cont
 				}
 				specVal.time = value.Timestamp
 				specVal.value = value.FloatValue
-				if specVal.valType == cadvisorapi.IntType {
+				if specVal.valType == cadvisorapiv1.IntType {
 					specVal.value = float64(value.IntValue)
 				}
 			}
@@ -304,7 +296,7 @@ func cadvisorInfoToUserDefinedMetrics(logger klog.Logger, info *cadvisorapi.Cont
 	return udm
 }
 
-func cadvisorInfoToSwapStats(info *cadvisorapi.ContainerInfo) *statsapi.SwapStats {
+func cadvisorInfoToSwapStats(info *cadvisorapiv2.ContainerInfo) *statsapi.SwapStats {
 	cstat, found := latestContainerStats(info)
 	if !found {
 		return nil
@@ -327,7 +319,7 @@ func cadvisorInfoToSwapStats(info *cadvisorapi.ContainerInfo) *statsapi.SwapStat
 	return swapStats
 }
 
-func cadvisorInfoToIOStats(info *cadvisorapi.ContainerInfo) *statsapi.IOStats {
+func cadvisorInfoToIOStats(info *cadvisorapiv2.ContainerInfo) *statsapi.IOStats {
 	cstat, found := latestContainerStats(info)
 	if !found {
 		return nil
@@ -346,7 +338,7 @@ func cadvisorInfoToIOStats(info *cadvisorapi.ContainerInfo) *statsapi.IOStats {
 }
 
 // latestContainerStats returns the latest container stats from cadvisor, or nil if none exist
-func latestContainerStats(info *cadvisorapi.ContainerInfo) (*cadvisorapi.ContainerStats, bool) {
+func latestContainerStats(info *cadvisorapiv2.ContainerInfo) (*cadvisorapiv2.ContainerStats, bool) {
 	stats := info.Stats
 	if len(stats) < 1 {
 		return nil, false
@@ -369,14 +361,14 @@ func isMemoryUnlimited(v uint64) bool {
 
 // getCgroupInfo returns the information of the container with the specified
 // containerName from cadvisor.
-func getCgroupInfo(cadvisor cadvisor.Interface, containerName string, updateStats bool) (*cadvisorapi.ContainerInfo, error) {
+func getCgroupInfo(cadvisor cadvisor.Interface, containerName string, updateStats bool) (*cadvisorapiv2.ContainerInfo, error) {
 	var maxAge *time.Duration
 	if updateStats {
 		age := 0 * time.Second
 		maxAge = &age
 	}
-	infoMap, err := cadvisor.ContainerInfoV2(containerName, cadvisorapi.RequestOptions{
-		IdType:    cadvisorapi.TypeName,
+	infoMap, err := cadvisor.ContainerInfoV2(containerName, cadvisorapiv2.RequestOptions{
+		IdType:    cadvisorapiv2.TypeName,
 		Count:     2, // 2 samples are needed to compute "instantaneous" CPU
 		Recursive: false,
 		MaxAge:    maxAge,
@@ -393,7 +385,7 @@ func getCgroupInfo(cadvisor cadvisor.Interface, containerName string, updateStat
 
 // getCgroupStats returns the latest stats of the container having the
 // specified containerName from cadvisor.
-func getCgroupStats(cadvisor cadvisor.Interface, containerName string, updateStats bool) (*cadvisorapi.ContainerStats, error) {
+func getCgroupStats(cadvisor cadvisor.Interface, containerName string, updateStats bool) (*cadvisorapiv2.ContainerStats, error) {
 	info, err := getCgroupInfo(cadvisor, containerName, updateStats)
 	if err != nil {
 		return nil, err
@@ -405,7 +397,7 @@ func getCgroupStats(cadvisor cadvisor.Interface, containerName string, updateSta
 	return stats, nil
 }
 
-func buildLogsStats(cstat *cadvisorapi.ContainerStats, rootFs *cadvisorapi.FsInfo) *statsapi.FsStats {
+func buildLogsStats(cstat *cadvisorapiv2.ContainerStats, rootFs *cadvisorapiv2.FsInfo) *statsapi.FsStats {
 	fsStats := &statsapi.FsStats{
 		Time:           metav1.NewTime(cstat.Timestamp),
 		AvailableBytes: &rootFs.Available,
@@ -421,7 +413,7 @@ func buildLogsStats(cstat *cadvisorapi.ContainerStats, rootFs *cadvisorapi.FsInf
 	return fsStats
 }
 
-func buildRootfsStats(cstat *cadvisorapi.ContainerStats, imageFs *cadvisorapi.FsInfo) *statsapi.FsStats {
+func buildRootfsStats(cstat *cadvisorapiv2.ContainerStats, imageFs *cadvisorapiv2.FsInfo) *statsapi.FsStats {
 	return &statsapi.FsStats{
 		Time:           metav1.NewTime(cstat.Timestamp),
 		AvailableBytes: &imageFs.Available,
@@ -431,7 +423,7 @@ func buildRootfsStats(cstat *cadvisorapi.ContainerStats, imageFs *cadvisorapi.Fs
 	}
 }
 
-func calcEphemeralStorage(containers []statsapi.ContainerStats, volumes []statsapi.VolumeStats, rootFsInfo *cadvisorapi.FsInfo,
+func calcEphemeralStorage(containers []statsapi.ContainerStats, volumes []statsapi.VolumeStats, rootFsInfo *cadvisorapiv2.FsInfo,
 	podLogStats *statsapi.FsStats, etcHostsStats *statsapi.FsStats, isCRIStatsProvider bool) *statsapi.FsStats {
 	result := &statsapi.FsStats{
 		Time:           metav1.NewTime(rootFsInfo.Timestamp),
@@ -494,7 +486,7 @@ func addUsage(first, second *uint64) *uint64 {
 	return &total
 }
 
-func makePodStorageStats(logger klog.Logger, s *statsapi.PodStats, rootFsInfo *cadvisorapi.FsInfo, resourceAnalyzer stats.ResourceAnalyzer, hostStatsProvider HostStatsProvider, isCRIStatsProvider bool) {
+func makePodStorageStats(logger klog.Logger, s *statsapi.PodStats, rootFsInfo *cadvisorapiv2.FsInfo, resourceAnalyzer stats.ResourceAnalyzer, hostStatsProvider HostStatsProvider, isCRIStatsProvider bool) {
 	podNs := s.PodRef.Namespace
 	podName := s.PodRef.Name
 	podUID := types.UID(s.PodRef.UID)
@@ -520,7 +512,7 @@ func makePodStorageStats(logger klog.Logger, s *statsapi.PodStats, rootFsInfo *c
 	s.EphemeralStorage = calcEphemeralStorage(s.Containers, ephemeralStats, rootFsInfo, logStats, etcHostsStats, isCRIStatsProvider)
 }
 
-func cadvisorPSIToStatsPSI(psi *cadvisorapi.PSIStats) *statsapi.PSIStats {
+func cadvisorPSIToStatsPSI(psi *cadvisorapiv1.PSIStats) *statsapi.PSIStats {
 	if psi == nil {
 		return nil
 	}

@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/utils/clock"
 )
@@ -47,8 +46,8 @@ type basicNodeStartupLatencyTracker struct {
 	clock clock.Clock
 }
 
-func NewNodeStartupLatencyTracker(logger klog.Logger) NodeStartupLatencyTracker {
-	bootTime, err := GetBootTime(logger)
+func NewNodeStartupLatencyTracker() NodeStartupLatencyTracker {
+	bootTime, err := GetBootTime()
 	if err != nil {
 		bootTime = time.Time{}
 	}

@@ -66,15 +66,6 @@ type managerImpl struct {
 	storage       storage
 }
 
-type preShutdownHandler struct {
-	manager *managerImpl
-}
-
-func (h *preShutdownHandler) ProcessShutdownEvent() error {
-	// Windows SCM preshutdown callback has no context, so start a root context at this callback boundary.
-	return h.manager.ProcessShutdownEvent(context.Background())
-}
-
 // NewManager returns a new node shutdown manager.
 func NewManager(conf *Config) Manager {
 	if !utilfeature.DefaultFeatureGate.Enabled(features.WindowsGracefulNodeShutdown) {
@@ -113,7 +104,7 @@ func NewManager(conf *Config) Manager {
 }
 
 // Admit rejects all pods if node is shutting
-func (m *managerImpl) Admit(_ context.Context, attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
+func (m *managerImpl) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
 	nodeShuttingDown := m.ShutdownStatus() != nil
 
 	if nodeShuttingDown {
@@ -154,7 +145,7 @@ func (m *managerImpl) Start(_ context.Context) error {
 		return err
 	}
 
-	service.SetPreShutdownHandler(&preShutdownHandler{manager: m})
+	service.SetPreShutdownHandler(m)
 
 	m.setMetrics()
 
@@ -247,7 +238,7 @@ func (m *managerImpl) ShutdownStatus() error {
 	return nil
 }
 
-func (m *managerImpl) ProcessShutdownEvent(ctx context.Context) error {
+func (m *managerImpl) ProcessShutdownEvent() error {
 	m.logger.V(1).Info("Shutdown manager detected new preshutdown event", "event", "preshutdown")
 
 	m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected preshutdown event")
@@ -256,8 +247,7 @@ func (m *managerImpl) ProcessShutdownEvent(ctx context.Context) error {
 	m.nodeShuttingDownNow = true
 	m.nodeShuttingDownMutex.Unlock()
 
-	nodeStatusCtx := klog.NewContext(ctx, m.logger)
-	go m.syncNodeStatus(nodeStatusCtx)
+	go m.syncNodeStatus(context.TODO())
 
 	m.logger.V(1).Info("Shutdown manager processing preshutdown event")
 	activePods := m.getPods()
@@ -290,7 +280,7 @@ func (m *managerImpl) ProcessShutdownEvent(ctx context.Context) error {
 		}()
 	}
 
-	return m.podManager.killPods(ctx, activePods)
+	return m.podManager.killPods(activePods)
 }
 
 func (m *managerImpl) periodRequested() time.Duration {

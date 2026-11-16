@@ -170,7 +170,7 @@ func getCgroupMountsHelper(ss map[string]bool, mounts []*mountinfo.Info, all boo
 			Mountpoint: mi.Mountpoint,
 			Root:       mi.Root,
 		}
-		for opt := range strings.SplitSeq(mi.VFSOptions, ",") {
+		for _, opt := range strings.Split(mi.VFSOptions, ",") {
 			seen, known := ss[opt]
 			if !known || (!all && seen) {
 				continue

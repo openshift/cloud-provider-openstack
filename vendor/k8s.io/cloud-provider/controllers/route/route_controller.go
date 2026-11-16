@@ -22,7 +22,6 @@ import (
 	"net"
 	"reflect"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -61,12 +60,6 @@ const (
 	// The 10s interval was defined in KEP 5237, it is equivalent to the default
 	// sync period of the route controller.
 	minRouteResyncInterval time.Duration = 10 * time.Second
-
-	// routesSyncKey and routeCorrectionsKey are workqueue keys that both trigger a
-	// full-cluster route reconcile. They identify the trigger reason so we can
-	// attribute the outcome.
-	routesSyncKey       = "node_change"
-	routeCorrectionsKey = "periodic"
 )
 
 var updateNetworkConditionBackoff = wait.Backoff{
@@ -144,10 +137,11 @@ func New(
 
 // enqueueClusterReconcile enqueues a route reconciliation of the cluster.
 func (rc *RouteController) enqueueClusterReconcile(_ interface{}) {
-	rc.workqueue.AddRateLimited(routesSyncKey)
+	rc.workqueue.AddRateLimited("routes")
 }
 
 func (rc *RouteController) handleNodeUpdate(oldObj, newObj interface{}) {
+
 	oldNode, oldOk := oldObj.(*v1.Node)
 	newNode, newOk := newObj.(*v1.Node)
 
@@ -155,22 +149,15 @@ func (rc *RouteController) handleNodeUpdate(oldObj, newObj interface{}) {
 		return
 	}
 
-	diffInPodCIDR := !reflect.DeepEqual(oldNode.Spec.PodCIDRs, newNode.Spec.PodCIDRs)
-	diffInNodeAddresses := !reflect.DeepEqual(oldNode.Status.Addresses, newNode.Status.Addresses)
-
-	if diffInPodCIDR || diffInNodeAddresses {
-		rc.workqueue.AddRateLimited(routesSyncKey)
-		return
-	}
-
 	// The Node informer triggers a periodic update event.
 	// In these cases, the old and new Node objects are identical. We use this event as a signal to perform
 	// a route reconciliation — our regular cleanup process — as described in the KEP 5237.
-	// We use a separate key to measure the amount of route reconciles due to a
-	// periodic reconcile. This is tracked in the metric
-	// `route_controller_route_sync_total` via the `trigger="periodic"` label.
-	if oldNode.GetResourceVersion() == newNode.GetResourceVersion() {
-		rc.workqueue.AddRateLimited(routeCorrectionsKey)
+	resync := oldNode.GetResourceVersion() == newNode.GetResourceVersion()
+	diffInPodCIDR := !reflect.DeepEqual(oldNode.Spec.PodCIDRs, newNode.Spec.PodCIDRs)
+	diffInNodeAddresses := !reflect.DeepEqual(oldNode.Status.Addresses, newNode.Status.Addresses)
+
+	if diffInPodCIDR || diffInNodeAddresses || resync {
+		rc.enqueueClusterReconcile(newObj)
 	}
 }
 
@@ -207,13 +194,8 @@ func (rc *RouteController) Run(ctx context.Context, syncPeriod time.Duration, co
 		go wait.UntilWithContext(ctx, rc.runWorker, time.Second)
 	} else {
 		go wait.NonSlidingUntil(func() {
-			routesChanged, err := rc.reconcileNodeRoutes(ctx)
-			// Without the workqueue, reconciles are only driven by the
-			// syncPeriod timer, so the trigger is always periodic.
-			recordRouteSync(routesChanged, err, "periodic")
-			if err != nil {
+			if err := rc.reconcileNodeRoutes(ctx); err != nil {
 				klog.Errorf("Couldn't reconcile node routes: %v", err)
-				return
 			}
 		}, syncPeriod, ctx.Done())
 	}
@@ -249,9 +231,7 @@ func (rc *RouteController) processNextWorkItem(ctx context.Context) bool {
 		defer rc.workqueue.Done(key)
 
 		// Run the route reconciliation
-		routesChanged, err := rc.reconcileNodeRoutes(ctx)
-		recordRouteSync(routesChanged, err, key)
-		if err != nil {
+		if err := rc.reconcileNodeRoutes(ctx); err != nil {
 			// Put the item back on the workqueue to handle any transient errors.
 			rc.workqueue.AddRateLimited(key)
 			klog.Infof("Couldn't reconcile node routes: %v, requeuing", err)
@@ -260,6 +240,7 @@ func (rc *RouteController) processNextWorkItem(ctx context.Context) bool {
 
 		return nil
 	}(obj)
+
 	if err != nil {
 		utilruntime.HandleError(err)
 		return true
@@ -268,14 +249,16 @@ func (rc *RouteController) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (rc *RouteController) reconcileNodeRoutes(ctx context.Context) (bool, error) {
+func (rc *RouteController) reconcileNodeRoutes(ctx context.Context) error {
+	routeSyncCount.Inc()
+
 	routeList, err := rc.routes.ListRoutes(ctx, rc.clusterName)
 	if err != nil {
-		return false, fmt.Errorf("error listing routes: %w", err)
+		return fmt.Errorf("error listing routes: %v", err)
 	}
 	nodes, err := rc.nodeLister.List(labels.Everything())
 	if err != nil {
-		return false, fmt.Errorf("error listing nodes: %w", err)
+		return fmt.Errorf("error listing nodes: %v", err)
 	}
 	return rc.reconcile(ctx, nodes, routeList)
 }
@@ -296,14 +279,13 @@ type routeNode struct {
 	cidrWithActions *map[string]routeAction
 }
 
-func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, routes []*cloudprovider.Route) (bool, error) {
+func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, routes []*cloudprovider.Route) error {
 	var l sync.Mutex
 	// routeMap includes info about a target Node and its addresses, routes and a map between Pod CIDRs and actions.
 	// If action is add/remove, the route will be added/removed.
 	// If action is keep, the route will not be touched.
 	// If action is update, the route will be deleted and then added.
 	routeMap := make(map[types.NodeName]routeNode)
-	var routesChanged atomic.Bool
 
 	// Put current routes into routeMap.
 	for _, route := range routes {
@@ -397,7 +379,6 @@ func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, rout
 				if err := rc.routes.DeleteRoute(ctx, rc.clusterName, route); err != nil {
 					klog.Errorf("Could not delete route %s %s after %v: %v", route.Name, route.DestinationCIDR, time.Since(startTime), err)
 				} else {
-					routesChanged.Store(true)
 					klog.Infof("Deleted route %s %s after %v", route.Name, route.DestinationCIDR, time.Since(startTime))
 				}
 				<-rateLimiter
@@ -442,8 +423,7 @@ func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, rout
 			wg.Add(1)
 			go func(nodeName types.NodeName, nameHint string, route *cloudprovider.Route) {
 				defer wg.Done()
-
-				createRouteFunc := func() error {
+				err := clientretry.RetryOnConflict(updateNetworkConditionBackoff, func() error {
 					startTime := time.Now()
 					// Ensure that we don't have more than maxConcurrentRouteOperations
 					// CreateRoute calls in flight.
@@ -461,22 +441,18 @@ func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, rout
 									Name:       string(nodeName),
 									UID:        node.UID,
 									Namespace:  "",
-								}, v1.EventTypeWarning, "FailedToCreateRoute", "%s", msg,
-							)
+								}, v1.EventTypeWarning, "FailedToCreateRoute", "%s", msg)
 							klog.V(4).Info(msg)
 							return err
 						}
 					}
-					routesChanged.Store(true)
 					l.Lock()
 					// Mark the route action as done (keep)
 					(*routeMap[nodeName].cidrWithActions)[route.DestinationCIDR] = keep
 					l.Unlock()
 					klog.Infof("Created route for node %s %s with hint %s after %v", nodeName, route.DestinationCIDR, nameHint, time.Since(startTime))
 					return nil
-				}
-
-				err := clientretry.RetryOnConflict(updateNetworkConditionBackoff, createRouteFunc)
+				})
 				if err != nil {
 					klog.Errorf("Could not create route %s %s for node %s: %v", nameHint, route.DestinationCIDR, nodeName, err)
 				}
@@ -521,12 +497,11 @@ func (rc *RouteController) reconcile(ctx context.Context, nodes []*v1.Node, rout
 		}(node)
 	}
 	wg.Wait()
-
-	return routesChanged.Load(), nil
+	return nil
 }
 
 func (rc *RouteController) updateNetworkingCondition(node *v1.Node, routesCreated bool) error {
-	_, condition := nodeutil.GetNodeCondition(&node.Status, v1.NodeNetworkUnavailable)
+	_, condition := nodeutil.GetNodeCondition(&(node.Status), v1.NodeNetworkUnavailable)
 	if routesCreated && condition != nil && condition.Status == v1.ConditionFalse && condition.Reason == "RouteCreated" {
 		klog.V(2).Infof("set node %v with NodeNetworkUnavailable=false was canceled because it is already set", node.Name)
 		return nil
@@ -568,6 +543,7 @@ func (rc *RouteController) updateNetworkingCondition(node *v1.Node, routesCreate
 		}
 		return err
 	})
+
 	if err != nil {
 		klog.Errorf("Error updating node %s: %v", node.Name, err)
 	}

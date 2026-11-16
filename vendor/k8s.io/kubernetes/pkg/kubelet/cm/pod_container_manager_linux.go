@@ -60,8 +60,6 @@ type podContainerManagerImpl struct {
 	podContainerManager ContainerManager
 	// memoryReservationPolicy controls memory reservation protection behavior
 	memoryReservationPolicy kubeletconfig.MemoryReservationPolicy
-	// memoryThrottlingFactor is used to compute pod-level memory.high
-	memoryThrottlingFactor *float64
 }
 
 // Make sure that podContainerManagerImpl implements the PodContainerManager interface
@@ -81,7 +79,7 @@ func (m *podContainerManagerImpl) EnsureExists(logger klog.Logger, pod *v1.Pod) 
 	alreadyExists := m.Exists(pod)
 	if !alreadyExists {
 		enforceCPULimits := m.enforceCPULimits
-		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DisableCPUQuotaWithExclusiveCPUs) && m.podContainerManager.PodHasExclusiveCPUs(logger, pod) {
+		if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.DisableCPUQuotaWithExclusiveCPUs) && m.podContainerManager.PodHasExclusiveCPUs(pod) {
 			logger.V(2).Info("Disabled CFS quota", "pod", klog.KObj(pod))
 			enforceCPULimits = false
 		}
@@ -100,7 +98,6 @@ func (m *podContainerManagerImpl) EnsureExists(logger klog.Logger, pod *v1.Pod) 
 			containerConfig.ResourceParameters.PidsLimit = &m.podPidsLimit
 		}
 		if enforceMemoryQoS {
-			m.applyPodLevelMemoryHigh(pod, containerConfig.ResourceParameters)
 			logger.V(4).Info("MemoryQoS config for pod", "pod", klog.KObj(pod), "unified", containerConfig.ResourceParameters.Unified)
 		}
 		if err := m.cgroupManager.Create(logger, containerConfig); err != nil {
@@ -109,15 +106,6 @@ func (m *podContainerManagerImpl) EnsureExists(logger klog.Logger, pod *v1.Pod) 
 
 	}
 	return nil
-}
-
-// applyPodLevelMemoryHigh sets memory.high on the pod cgroup.
-// The kernel enforces memory.high hierarchically (try_charge_memcg walks ancestors),
-// so this throttles all containers in the pod without per-container memory.high.
-func (m *podContainerManagerImpl) applyPodLevelMemoryHigh(pod *v1.Pod, rc *ResourceConfig) {
-	if m.memoryThrottlingFactor != nil {
-		ApplyPodLevelMemoryHigh(pod, rc, *m.memoryThrottlingFactor)
-	}
 }
 
 // GetPodContainerName returns the CgroupName identifier, and its literal cgroupfs form on the host.
@@ -268,7 +256,10 @@ func (m *podContainerManagerImpl) IsPodCgroup(cgroupfs string) (bool, types.UID)
 
 // GetAllPodsFromCgroups scans through all the subsystems of pod cgroups
 // Get list of pods whose cgroup still exist on the cgroup mounts
-func (m *podContainerManagerImpl) GetAllPodsFromCgroups(logger klog.Logger) (map[types.UID]CgroupName, error) {
+func (m *podContainerManagerImpl) GetAllPodsFromCgroups() (map[types.UID]CgroupName, error) {
+	// Use klog.TODO() because we currently do not have a proper logger to pass in.
+	// Replace this with an appropriate logger when refactoring this function to accept a logger parameter.
+	logger := klog.TODO()
 	// Map for storing all the found pods on the disk
 	foundPods := make(map[types.UID]CgroupName)
 	qosContainersList := [3]CgroupName{m.qosContainersInfo.BestEffort, m.qosContainersInfo.Burstable, m.qosContainersInfo.Guaranteed}
@@ -357,7 +348,7 @@ func (m *podContainerManagerNoop) ReduceCPULimits(_ klog.Logger, _ CgroupName) e
 	return nil
 }
 
-func (m *podContainerManagerNoop) GetAllPodsFromCgroups(_ klog.Logger) (map[types.UID]CgroupName, error) {
+func (m *podContainerManagerNoop) GetAllPodsFromCgroups() (map[types.UID]CgroupName, error) {
 	return nil, nil
 }
 

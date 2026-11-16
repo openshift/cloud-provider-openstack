@@ -23,17 +23,16 @@ import (
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/klog/v2"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
-	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 )
 
 // PodSandboxChanged checks whether the spec of the pod is changed and returns
-// (changed, new attempt, original sandboxID if exist, reason for change).
-func PodSandboxChanged(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, uint32, string, string) {
+// (changed, new attempt, original sandboxID if exist).
+func PodSandboxChanged(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, uint32, string) {
 	ctx := context.TODO() // This context will be passed as parameter in the future
 	logger := klog.FromContext(ctx)
 	if len(podStatus.SandboxStatuses) == 0 {
 		logger.V(2).Info("No sandbox for pod can be found. Need to start a new one", "pod", klog.KObj(pod))
-		return true, 0, "", kubetypes.PodSandboxNotReadyMsgNoPodSandbox
+		return true, 0, ""
 	}
 
 	readySandboxCount := 0
@@ -47,26 +46,26 @@ func PodSandboxChanged(pod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, u
 	sandboxStatus := podStatus.SandboxStatuses[0]
 	if readySandboxCount > 1 {
 		logger.V(2).Info("Multiple sandboxes are ready for Pod. Need to reconcile them", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id, kubetypes.PodSandboxNotReadyMsgMultipleSandboxes
+		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
 	}
 	if sandboxStatus.State != runtimeapi.PodSandboxState_SANDBOX_READY {
 		logger.V(2).Info("No ready sandbox for pod can be found. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id, kubetypes.PodSandboxNotReadyMsgSandboxNotReady
+		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
 	}
 
 	// Needs to create a new sandbox when network namespace changed.
 	if sandboxStatus.GetLinux().GetNamespaces().GetOptions().GetNetwork() != NetworkNamespaceForPod(pod) {
 		logger.V(2).Info("Sandbox for pod has changed. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, "", kubetypes.PodSandboxNotReadyMsgNetworkNamespaceMode
+		return true, sandboxStatus.Metadata.Attempt + 1, ""
 	}
 
 	// Needs to create a new sandbox when the sandbox does not have an IP address.
 	if !kubecontainer.IsHostNetworkPod(pod) && sandboxStatus.Network != nil && sandboxStatus.Network.Ip == "" {
 		logger.V(2).Info("Sandbox for pod has no IP address. Need to start a new one", "pod", klog.KObj(pod))
-		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id, kubetypes.PodSandboxNotReadyMsgNoIPAddress
+		return true, sandboxStatus.Metadata.Attempt + 1, sandboxStatus.Id
 	}
 
-	return false, sandboxStatus.Metadata.Attempt, sandboxStatus.Id, ""
+	return false, sandboxStatus.Metadata.Attempt, sandboxStatus.Id
 }
 
 // IpcNamespaceForPod returns the runtimeapi.NamespaceMode

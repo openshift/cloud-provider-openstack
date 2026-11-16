@@ -49,20 +49,20 @@ func NewPodScope(policy Policy) Scope {
 	}
 }
 
-func (s *podScope) Admit(ctx context.Context, pod *v1.Pod, operation lifecycle.Operation) lifecycle.PodAdmitResult {
+func (s *podScope) Admit(ctx context.Context, pod *v1.Pod) lifecycle.PodAdmitResult {
 	// If the PodLevelResourceManagers feature is enabled, delegate the resource
 	// allocation to the hint providers (CPU and Memory managers) via the AllocatePod call.
 	// This is a one-time allocation for the entire pod.
 	if utilfeature.DefaultFeatureGate.Enabled(features.PodLevelResourceManagers) && resourcehelper.IsPodLevelResourcesSet(pod) {
-		return s.admitUsingPodResources(ctx, pod, operation)
+		return s.admitUsingPodResources(ctx, pod)
 	}
-	return s.admitUsingContainerResources(ctx, pod, operation)
+	return s.admitUsingContainerResources(ctx, pod)
 }
 
-func (s *podScope) admitUsingContainerResources(ctx context.Context, pod *v1.Pod, operation lifecycle.Operation) lifecycle.PodAdmitResult {
+func (s *podScope) admitUsingContainerResources(ctx context.Context, pod *v1.Pod) lifecycle.PodAdmitResult {
 	logger := klog.FromContext(ctx)
 
-	bestHint, admit := s.checkAffinity(logger, pod, operation)
+	bestHint, admit := s.checkAffinity(logger, pod)
 	if !admit {
 		return admission.GetPodAdmitResult(NewTopologyAffinityError())
 	}
@@ -71,7 +71,7 @@ func (s *podScope) admitUsingContainerResources(ctx context.Context, pod *v1.Pod
 		logger.Info("Topology Affinity", "bestHint", bestHint, "pod", klog.KObj(pod), "containerName", container.Name)
 		s.setTopologyHints(string(pod.UID), container.Name, bestHint)
 
-		err := s.allocateAlignedResources(ctx, pod, &container, operation)
+		err := s.allocateAlignedResources(pod, &container)
 		if err != nil {
 			metrics.TopologyManagerAdmissionErrorsTotal.Inc()
 			return admission.GetPodAdmitResult(err)
@@ -82,10 +82,10 @@ func (s *podScope) admitUsingContainerResources(ctx context.Context, pod *v1.Pod
 	return admission.GetPodAdmitResult(nil)
 }
 
-func (s *podScope) admitUsingPodResources(ctx context.Context, pod *v1.Pod, operation lifecycle.Operation) lifecycle.PodAdmitResult {
+func (s *podScope) admitUsingPodResources(ctx context.Context, pod *v1.Pod) lifecycle.PodAdmitResult {
 	logger := klog.FromContext(ctx)
 
-	bestHint, admit := s.checkAffinity(logger, pod, operation)
+	bestHint, admit := s.checkAffinity(logger, pod)
 	if !admit {
 		return admission.GetPodAdmitResult(NewPodLevelTopologyAffinityError("pod with pod-level resources failed admission under pod-scope topology manager"))
 	}
@@ -101,7 +101,7 @@ func (s *podScope) admitUsingPodResources(ctx context.Context, pod *v1.Pod, oper
 		s.setTopologyHints(string(pod.UID), container.Name, bestHint)
 	}
 
-	err := s.allocatePodAlignedResources(logger, pod, operation)
+	err := s.allocatePodAlignedResources(pod)
 	if err != nil {
 		logger.Error(err, "Pod-level allocation failed", "pod", klog.KObj(pod))
 		metrics.TopologyManagerAdmissionErrorsTotal.Inc()
@@ -112,10 +112,10 @@ func (s *podScope) admitUsingPodResources(ctx context.Context, pod *v1.Pod, oper
 	return admission.GetPodAdmitResult(nil)
 }
 
-func (s *podScope) checkAffinity(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) (TopologyHint, bool) {
+func (s *podScope) checkAffinity(logger klog.Logger, pod *v1.Pod) (TopologyHint, bool) {
 	// Calculate the best NUMA affinity for the pod as a whole.
-	bestHint, admit := s.calculateAffinity(logger, pod, operation)
-	logger.Info("Best TopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod), "operation", operation)
+	bestHint, admit := s.calculateAffinity(logger, pod)
+	logger.Info("Best TopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod))
 	if !admit {
 		if IsAlignmentGuaranteed(s.policy) {
 			// Increment failure metric only if alignment was guaranteed.
@@ -136,21 +136,21 @@ func (s *podScope) updateSuccessMetrics(logger klog.Logger, pod *v1.Pod) {
 	}
 }
 
-func (s *podScope) accumulateProvidersHints(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) []map[string][]TopologyHint {
+func (s *podScope) accumulateProvidersHints(logger klog.Logger, pod *v1.Pod) []map[string][]TopologyHint {
 	var providersHints []map[string][]TopologyHint
 
 	for _, provider := range s.hintProviders {
 		// Get the TopologyHints for a Pod from a provider.
-		hints := provider.GetPodTopologyHints(logger, pod, operation)
+		hints := provider.GetPodTopologyHints(pod)
 		providersHints = append(providersHints, hints)
-		logger.Info("TopologyHints", "hints", hints, "pod", klog.KObj(pod), "operation", operation)
+		logger.Info("TopologyHints", "hints", hints, "pod", klog.KObj(pod))
 	}
 	return providersHints
 }
 
-func (s *podScope) calculateAffinity(logger klog.Logger, pod *v1.Pod, operation lifecycle.Operation) (TopologyHint, bool) {
-	providersHints := s.accumulateProvidersHints(logger, pod, operation)
+func (s *podScope) calculateAffinity(logger klog.Logger, pod *v1.Pod) (TopologyHint, bool) {
+	providersHints := s.accumulateProvidersHints(logger, pod)
 	bestHint, admit := s.policy.Merge(logger, providersHints)
-	logger.Info("PodTopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod), "operation", operation)
+	logger.Info("PodTopologyHint", "bestHint", bestHint, "pod", klog.KObj(pod))
 	return bestHint, admit
 }
