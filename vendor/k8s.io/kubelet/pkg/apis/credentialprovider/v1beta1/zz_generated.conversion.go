@@ -71,7 +71,8 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1beta1_AuthConfig_To_credentialprovider_AuthConfig(in *AuthConfig, out *credentialprovider.AuthConfig, s conversion.Scope) error {
-	*out = *(*credentialprovider.AuthConfig)(unsafe.Pointer(in))
+	out.Username = in.Username
+	out.Password = in.Password
 	return nil
 }
 
@@ -81,7 +82,8 @@ func Convert_v1beta1_AuthConfig_To_credentialprovider_AuthConfig(in *AuthConfig,
 }
 
 func autoConvert_credentialprovider_AuthConfig_To_v1beta1_AuthConfig(in *credentialprovider.AuthConfig, out *AuthConfig, s conversion.Scope) error {
-	*out = *(*AuthConfig)(unsafe.Pointer(in))
+	out.Username = in.Username
+	out.Password = in.Password
 	return nil
 }
 

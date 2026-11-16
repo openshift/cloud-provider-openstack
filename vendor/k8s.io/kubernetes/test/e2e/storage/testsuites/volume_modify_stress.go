@@ -18,7 +18,6 @@ package testsuites
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/onsi/ginkgo/v2"
@@ -88,24 +87,23 @@ func (v *volumeModifyStressTestSuite) GetTestSuiteInfo() storageframework.TestSu
 	return v.tsInfo
 }
 
-func (v *volumeModifyStressTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
+func (v *volumeModifyStressTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
 	driverInfo := driver.GetDriverInfo()
 	if driverInfo.VolumeModifyStressTestOptions == nil {
-		return fmt.Sprintf("Driver %s doesn't specify volume modify stress test options", driverInfo.Name)
+		e2eskipper.Skipf("Driver %s doesn't specify volume modify stress test options -- skipping", driverInfo.Name)
 	}
 	if driverInfo.VolumeModifyStressTestOptions.NumPods <= 0 {
 		framework.Failf("NumPods in modify volume stress test options must be a positive integer, received: %d", driverInfo.VolumeModifyStressTestOptions.NumPods)
 	}
 	_, ok := driver.(storageframework.VolumeAttributesClassTestDriver)
 	if !ok {
-		return fmt.Sprintf("Driver %q does not support VolumeAttributesClass tests", driver.GetDriverInfo().Name)
+		e2eskipper.Skipf("Driver %q does not support VolumeAttributesClass tests - skipping", driver.GetDriverInfo().Name)
 	}
 	// Skip block storage tests if the driver we are testing against does not support block volumes
 	// TODO: This should be made generic so that it doesn't have to be re-written for every test that uses the 	BlockVolModeDynamicPV testcase
 	if !driverInfo.Capabilities[storageframework.CapBlock] && pattern.VolMode == v1.PersistentVolumeBlock {
-		return fmt.Sprintf("Driver %q does not support block volume mode", driver.GetDriverInfo().Name)
+		e2eskipper.Skipf("Driver %q does not support block volume mode - skipping", driver.GetDriverInfo().Name)
 	}
-	return ""
 }
 
 func (v *volumeModifyStressTestSuite) DefineTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {

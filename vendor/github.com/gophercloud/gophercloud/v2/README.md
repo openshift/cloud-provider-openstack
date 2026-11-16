@@ -229,7 +229,6 @@ The above code sample creates a new server with the parameters, and returns a
 |         Messaging        |       Zaqar      |        `openstack/messaging`       |    ✔    |    ✔    |
 |        Networking        |      Neutron     |       `openstack/networking`       |    ✔    |    ✔    |
 |      Object Storage      |       Swift      |      `openstack/objectstorage`     |    ✔    |    ✔    |
-|   Shared File Systems    |      Manila      |   `openstack/sharedfilesystems`    |    ✔    |    ✔    |
 
 ## Advanced Usage
 

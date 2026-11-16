@@ -21,11 +21,12 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	schedulingapi "k8s.io/api/scheduling/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
+	schedulinglisters "k8s.io/client-go/listers/scheduling/v1alpha2"
 	"k8s.io/klog/v2"
 	fwk "k8s.io/kube-scheduler/framework"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/feature"
-	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/helper"
 	"k8s.io/kubernetes/pkg/scheduler/framework/plugins/names"
 )
 
@@ -36,8 +37,8 @@ const (
 
 // TopologyPlacement is a plugin that generates placements for a pod group based on its topology constraints.
 type TopologyPlacement struct {
-	handle fwk.Handle
-	fts    feature.Features
+	handle         fwk.Handle
+	podGroupLister schedulinglisters.PodGroupLister
 }
 
 var _ fwk.PlacementGeneratePlugin = &TopologyPlacement{}
@@ -45,8 +46,8 @@ var _ fwk.PlacementGeneratePlugin = &TopologyPlacement{}
 // New initializes a new plugin and returns it.
 func New(_ context.Context, _ runtime.Object, fh fwk.Handle, fts feature.Features) (*TopologyPlacement, error) {
 	return &TopologyPlacement{
-		handle: fh,
-		fts:    fts,
+		handle:         fh,
+		podGroupLister: fh.SharedInformerFactory().Scheduling().V1alpha2().PodGroups().Lister(),
 	}, nil
 }
 
@@ -58,7 +59,11 @@ func (pl *TopologyPlacement) Name() string {
 // GeneratePlacements generates placements for a pod group based on the topology constraints in the pod group spec.
 // It uses the parent placement to find the nodes that are available for placement.
 func (pl *TopologyPlacement) GeneratePlacements(ctx context.Context, state fwk.PodGroupCycleState, podGroup fwk.PodGroupInfo, parentPlacement *fwk.Placement) (*fwk.GeneratePlacementsResult, *fwk.Status) {
-	topologyKey, ok := pl.getTopologyKey(podGroup)
+	podGroupResource, err := pl.podGroupLister.PodGroups(podGroup.GetNamespace()).Get(podGroup.GetName())
+	if err != nil {
+		return nil, fwk.AsStatus(err)
+	}
+	topologyKey, ok := pl.getTopologyKey(podGroupResource)
 	if !ok {
 		// No topology constraints, return a single placement with no constraints.
 		return &fwk.GeneratePlacementsResult{Placements: []*fwk.Placement{parentPlacement}}, nil
@@ -119,32 +124,15 @@ func (pl *TopologyPlacement) getScheduledPodsTopologyDomain(topologyKey string, 
 }
 
 // getTopologyKey returns the topology key for the pod group if there's any specified.
-func (pl *TopologyPlacement) getTopologyKey(pgi fwk.PodGroupInfo) (string, bool) {
-	if pg := pgi.GetPodGroup(); pg != nil {
-		if schedulingConstraints := pg.Spec.SchedulingConstraints; schedulingConstraints != nil && len(schedulingConstraints.Topology) > 0 {
-			// Right now, we only support a single topology constraint on the API level.
-			return schedulingConstraints.Topology[0].Key, true
-		}
-	} else if cpg := pgi.GetCompositePodGroup(); cpg != nil {
-		if schedulingConstraints := cpg.Spec.SchedulingConstraints; schedulingConstraints != nil && len(schedulingConstraints.Topology) > 0 {
-			// Right now, we only support a single topology constraint on the API level.
-			return schedulingConstraints.Topology[0].Key, true
-		}
+func (pl *TopologyPlacement) getTopologyKey(podGroupResource *schedulingapi.PodGroup) (string, bool) {
+	if schedulingConstraints := podGroupResource.Spec.SchedulingConstraints; schedulingConstraints != nil && len(schedulingConstraints.Topology) > 0 {
+		// Right now, we only support a single topology constraint on the API level.
+		return schedulingConstraints.Topology[0].Key, true
 	}
 	return "", false
 }
 
 func (pl *TopologyPlacement) getScheduledPods(podGroup fwk.PodGroupInfo) ([]*v1.Pod, error) {
-	if pl.fts.EnableCompositePodGroup {
-		var results []*v1.Pod
-		for podGroupState, err := range helper.GetPodGroupStates(pl.handle.SnapshotSharedLister(), fwk.MustParseEntityKey(podGroup.GetKey())) {
-			if err != nil {
-				return nil, err
-			}
-			results = append(results, podGroupState.ScheduledPods()...)
-		}
-		return results, nil
-	}
 	name := podGroup.GetName()
 	podGroupState, err := pl.handle.SnapshotSharedLister().PodGroupStates().Get(podGroup.GetNamespace(), name)
 	if err != nil {

@@ -1,11 +1,21 @@
-// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
-// SPDX-License-Identifier: Apache-2.0
+// Copyright 2015 go-swagger maintainers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package json
 
 import (
 	stdjson "encoding/json"
-	"fmt"
 
 	"github.com/go-openapi/swag/jsonutils/adapters/ifaces"
 	"github.com/go-openapi/swag/typeutils"
@@ -25,16 +35,11 @@ var ErrStdlib jsonError = "error from the JSON adapter stdlib"
 var _ ifaces.Adapter = &Adapter{}
 
 type Adapter struct {
-	options
 }
 
 // NewAdapter yields an [ifaces.Adapter] using the standard library.
-func NewAdapter(opts ...Option) *Adapter {
-	var o options
-
-	return &Adapter{
-		options: buildOptions(o, opts),
-	}
+func NewAdapter() *Adapter {
+	return &Adapter{}
 }
 
 func (a *Adapter) Marshal(value any) ([]byte, error) {
@@ -46,18 +51,45 @@ func (a *Adapter) Unmarshal(data []byte, value any) error {
 }
 
 func (a *Adapter) OrderedMarshal(value ifaces.Ordered) ([]byte, error) {
-	w, redeem := poolOfWriters.BorrowWithRedeem()
-	defer redeem()
-	w.setBuf()
+	w := poolOfWriters.Borrow()
+	defer func() {
+		poolOfWriters.Redeem(w)
+	}()
 
-	a.orderedMarshal(w, value, 1)
+	if typeutils.IsNil(value) {
+		w.RawString("null")
+
+		return w.BuildBytes()
+	}
+
+	w.RawByte('{')
+	first := true
+	for k, v := range value.OrderedItems() {
+		if first {
+			first = false
+		} else {
+			w.RawByte(',')
+		}
+
+		w.String(k)
+		w.RawByte(':')
+
+		switch val := v.(type) {
+		case ifaces.Ordered:
+			w.Raw(a.OrderedMarshal(val))
+		default:
+			w.Raw(stdjson.Marshal(v))
+		}
+	}
+
+	w.RawByte('}')
 
 	return w.BuildBytes()
 }
 
 func (a *Adapter) OrderedUnmarshal(data []byte, value ifaces.SetOrdered) error {
 	var m MapSlice
-	if err := m.orderedUnmarshalJSON(data, a.maxDepth()); err != nil {
+	if err := m.OrderedUnmarshalJSON(data); err != nil {
 		return err
 	}
 
@@ -91,43 +123,4 @@ func (a *Adapter) Redeem() {
 }
 
 func (a *Adapter) Reset() {
-	a.options = options{}
-}
-
-// orderedMarshal writes value to w, tracking the container nesting depth to guard
-// against stack overflow on deeply nested structures.
-func (a *Adapter) orderedMarshal(w *jwriter, value ifaces.Ordered, depth int) {
-	if typeutils.IsNil(value) {
-		w.RawString("null")
-
-		return
-	}
-
-	if maxDepth := a.maxDepth(); depth > maxDepth {
-		w.SetErr(fmt.Errorf("maximum nesting depth of %d exceeded: %w", maxDepth, ErrStdlib))
-
-		return
-	}
-
-	w.RawByte('{')
-	first := true
-	for k, v := range value.OrderedItems() {
-		if first {
-			first = false
-		} else {
-			w.RawByte(',')
-		}
-
-		w.String(k)
-		w.RawByte(':')
-
-		switch val := v.(type) {
-		case ifaces.Ordered:
-			a.orderedMarshal(w, val, depth+1)
-		default:
-			w.Raw(stdjson.Marshal(v))
-		}
-	}
-
-	w.RawByte('}')
 }

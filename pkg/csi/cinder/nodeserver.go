@@ -520,9 +520,10 @@ func (ns *nodeServer) NodeGetInfo(ctx context.Context, req *csi.NodeGetInfoReque
 		}
 	}
 
+	maxVolume := ns.Cloud.GetMaxVolLimit()
 	nodeInfo := &csi.NodeGetInfoResponse{
 		NodeId:            nodeID,
-		MaxVolumesPerNode: ns.Opts.NodeVolumeAttachLimit,
+		MaxVolumesPerNode: maxVolume,
 	}
 
 	if !ns.Driver.withTopology {

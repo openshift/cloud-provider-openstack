@@ -14,7 +14,7 @@ import (
 func RangeToBits(str string) ([]byte, error) {
 	bits := new(big.Int)
 
-	for r := range strings.SplitSeq(str, ",") {
+	for _, r := range strings.Split(str, ",") {
 		// allow extra spaces around
 		r = strings.TrimSpace(r)
 		// allow empty elements (extra commas)

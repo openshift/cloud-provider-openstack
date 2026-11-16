@@ -1,27 +1,33 @@
-// SPDX-FileCopyrightText: Copyright 2015-2025 go-swagger maintainers
-// SPDX-License-Identifier: Apache-2.0
+// Copyright 2015 go-swagger maintainers
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package fileutils
 
 import "mime/multipart"
 
 // File represents an uploaded file.
-//
-// Data holds the payload, and Header the multipart metadata.
-// File implements [io.ReadCloser] by delegating both methods to Data.
-//
-// The zero File is not usable: [File.Read] and [File.Close] both panic when Data is nil.
 type File struct {
 	Data   multipart.File
 	Header *multipart.FileHeader
 }
 
-// Read reads bytes from the payload.
+// Read bytes from the file
 func (f *File) Read(p []byte) (n int, err error) {
 	return f.Data.Read(p)
 }
 
-// Close closes the payload.
+// Close the file
 func (f *File) Close() error {
 	return f.Data.Close()
 }

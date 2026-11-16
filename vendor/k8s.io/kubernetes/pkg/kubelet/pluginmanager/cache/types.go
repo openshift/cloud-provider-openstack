@@ -16,10 +16,7 @@ limitations under the License.
 
 package cache
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 // PluginHandler is an interface a client of the pluginwatcher API needs to implement in
 // order to consume plugins
@@ -52,12 +49,12 @@ import (
 type PluginHandler interface {
 	// Validate returns an error if the information provided by
 	// the potential plugin is erroneous (unsupported version, ...)
-	ValidatePlugin(ctx context.Context, pluginName string, endpoint string, versions []string) error
+	ValidatePlugin(pluginName string, endpoint string, versions []string) error
 	// RegisterPlugin is called so that the plugin can be registered by any
 	// plugin consumer
 	// Error encountered here can still be Notified to the plugin.
-	RegisterPlugin(ctx context.Context, pluginName, endpoint string, versions []string, pluginClientTimeout *time.Duration) error
+	RegisterPlugin(pluginName, endpoint string, versions []string, pluginClientTimeout *time.Duration) error
 	// DeRegisterPlugin is called once the pluginwatcher observes that the socket has
 	// been deleted.
-	DeRegisterPlugin(ctx context.Context, pluginName, endpoint string)
+	DeRegisterPlugin(pluginName, endpoint string)
 }

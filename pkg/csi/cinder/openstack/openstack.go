@@ -159,6 +159,7 @@ var (
 
 func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 	OsInstances = make(map[string]IOpenStack)
+	NoopInstances = make(map[string]IOpenStack)
 	metrics.RegisterMetrics("cinder-csi")
 	if httpEndpoint != "" {
 		mux := http.NewServeMux()
@@ -177,7 +178,7 @@ func InitOpenStackProvider(cfgFiles []string, httpEndpoint string) {
 }
 
 // CreateOpenStackProvider creates Openstack Instance with custom Global config param
-func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
+func CreateOpenStackProvider(cloudName string, noClient bool) (IOpenStack, error) {
 	// Get config from file
 	cfg, err := GetConfigFromFiles(configFiles)
 	if err != nil {
@@ -186,13 +187,23 @@ func CreateOpenStackProvider(cloudName string) (IOpenStack, error) {
 	}
 	logcfg(cfg)
 	global := cfg.Global[cloudName]
-	if global == nil {
+	if global == nil && !noClient {
 		return nil, fmt.Errorf("GetConfigFromFiles cloud name \"%s\" not found in configuration files: %s", cloudName, configFiles)
 	}
 
 	// if no search order given, use default
 	if len(cfg.Metadata.SearchOrder) == 0 {
 		cfg.Metadata.SearchOrder = fmt.Sprintf("%s,%s", metadata.ConfigDriveID, metadata.MetadataID)
+	}
+
+	if noClient {
+		// Init OpenStack
+		NoopInstances[cloudName] = &NoopOpenStack{
+			bsOpts:       cfg.BlockStorage,
+			metadataOpts: cfg.Metadata,
+		}
+
+		return NoopInstances[cloudName], nil
 	}
 
 	provider, err := client.NewOpenStackClient(global, "cinder-csi-plugin", userAgentData...)

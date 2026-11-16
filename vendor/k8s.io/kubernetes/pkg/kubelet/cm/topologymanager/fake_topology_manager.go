@@ -32,7 +32,9 @@ type fakeManager struct {
 }
 
 // NewFakeManager returns an instance of FakeManager
-func NewFakeManager(logger klog.Logger) Manager {
+func NewFakeManager() Manager {
+	// Use klog.TODO() because changing NewManager requires changes in too many other components
+	logger := klog.TODO()
 	logger.Info("NewFakeManager")
 	return &fakeManager{}
 }
@@ -45,7 +47,9 @@ func NewFakeManagerWithScope(scope string) Manager {
 }
 
 // NewFakeManagerWithHint returns an instance of fake topology manager with specified topology hints
-func NewFakeManagerWithHint(logger klog.Logger, hint *TopologyHint) Manager {
+func NewFakeManagerWithHint(hint *TopologyHint) Manager {
+	// Use klog.TODO() because changing NewManager requires changes in too many other components
+	logger := klog.TODO()
 	logger.Info("NewFakeManagerWithHint")
 	return &fakeManager{
 		hint:   hint,
@@ -54,14 +58,20 @@ func NewFakeManagerWithHint(logger klog.Logger, hint *TopologyHint) Manager {
 }
 
 // NewFakeManagerWithPolicy returns an instance of fake topology manager with specified policy
-func NewFakeManagerWithPolicy(logger klog.Logger, policy Policy) Manager {
+func NewFakeManagerWithPolicy(policy Policy) Manager {
+	// Use klog.TODO() because changing NewManager requires changes in too many other components
+	logger := klog.TODO()
 	logger.Info("NewFakeManagerWithPolicy", "policy", policy.Name())
 	return &fakeManager{
 		policy: policy,
 	}
 }
 
-func (m *fakeManager) GetAffinity(logger klog.Logger, podUID string, containerName string) TopologyHint {
+func (m *fakeManager) GetAffinity(podUID string, containerName string) TopologyHint {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
+	logger := klog.FromContext(ctx)
 	logger.Info("GetAffinity", "podUID", podUID, "containerName", containerName)
 	if m.hint == nil {
 		return TopologyHint{}
@@ -82,16 +92,27 @@ func (m *fakeManager) AddHintProvider(logger klog.Logger, h HintProvider) {
 	logger.Info("AddHintProvider", "hintProvider", h)
 }
 
-func (m *fakeManager) AddContainer(logger klog.Logger, pod *v1.Pod, container *v1.Container, containerID string) {
+func (m *fakeManager) AddContainer(pod *v1.Pod, container *v1.Container, containerID string) {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
+	logger := klog.FromContext(ctx)
 	logger.Info("AddContainer", "pod", klog.KObj(pod), "containerName", container.Name, "containerID", containerID)
 }
 
-func (m *fakeManager) RemoveContainer(logger klog.Logger, containerID string) error {
+func (m *fakeManager) RemoveContainer(containerID string) error {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
+	logger := klog.FromContext(ctx)
 	logger.Info("RemoveContainer", "containerID", containerID)
 	return nil
 }
 
-func (m *fakeManager) Admit(ctx context.Context, attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
+func (m *fakeManager) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
+	// TODO: create context here as changing interface https://github.com/kubernetes/kubernetes/blob/09aaf7226056a7964adcb176d789de5507313d00/pkg/kubelet/lifecycle/interfaces.go#L43
+	// requires changes in too many other components
+	ctx := context.TODO()
 	logger := klog.FromContext(ctx)
 	logger.Info("Topology Admit Handler")
 	return admission.GetPodAdmitResult(nil)

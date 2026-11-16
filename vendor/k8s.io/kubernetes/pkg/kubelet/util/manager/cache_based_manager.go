@@ -130,9 +130,11 @@ func (s *objectStore) DeleteReference(namespace, name string, _ types.UID) {
 
 // GetObjectTTLFromNodeFunc returns a function that returns TTL value
 // from a given Node object.
-func GetObjectTTLFromNodeFunc(ctx context.Context, getNode func(context.Context) (*v1.Node, error)) GetObjectTTLFunc {
+func GetObjectTTLFromNodeFunc(getNode func(context.Context) (*v1.Node, error)) GetObjectTTLFunc {
 	return func() (time.Duration, bool) {
-		node, err := getNode(ctx)
+		// TODO: Pass context from upper level instead of using context.Background().
+		// This requires changing the GetObjectTTLFunc signature to accept a context parameter.
+		node, err := getNode(context.Background())
 		if err != nil {
 			return time.Duration(0), false
 		}

@@ -16,11 +16,7 @@ limitations under the License.
 
 package lifecycle
 
-import (
-	"context"
-
-	v1 "k8s.io/api/core/v1"
-)
+import v1 "k8s.io/api/core/v1"
 
 // PodAdmitAttributes is the context for a pod admission decision.
 // The member fields of this struct should never be mutated.
@@ -56,7 +52,7 @@ type PodAdmitResult struct {
 // PodAdmitHandler is notified during pod admission.
 type PodAdmitHandler interface {
 	// Admit evaluates if a pod can be admitted.
-	Admit(ctx context.Context, attrs *PodAdmitAttributes) PodAdmitResult
+	Admit(attrs *PodAdmitAttributes) PodAdmitResult
 }
 
 // PodAdmitTarget maintains a list of handlers to invoke.

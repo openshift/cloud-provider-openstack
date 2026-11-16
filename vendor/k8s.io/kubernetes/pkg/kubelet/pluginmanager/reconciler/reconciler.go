@@ -39,7 +39,7 @@ type Reconciler interface {
 	// Run starts running the reconciliation loop which executes periodically,
 	// checks if plugins are correctly registered or unregistered.
 	// If not, it will trigger register/unregister operations to rectify.
-	Run(ctx context.Context)
+	Run(stopCh <-chan struct{})
 
 	// AddHandler adds the given plugin handler for a specific plugin type,
 	// which will be added to the actual state of world cache.
@@ -83,10 +83,16 @@ type reconciler struct {
 
 var _ Reconciler = &reconciler{}
 
-func (rc *reconciler) Run(ctx context.Context) {
-	wait.UntilWithContext(ctx, func(ctx context.Context) {
+func (rc *reconciler) Run(stopCh <-chan struct{}) {
+	// Use context.TODO() because we currently do not have a proper context to pass in.
+	// Replace this with an appropriate context when refactoring this function to accept a context parameter.
+	ctx := context.TODO()
+
+	wait.Until(func() {
 		rc.reconcile(ctx)
-	}, rc.loopSleepDuration)
+	},
+		rc.loopSleepDuration,
+		stopCh)
 }
 
 func (rc *reconciler) AddHandler(pluginType string, pluginHandler cache.PluginHandler) {

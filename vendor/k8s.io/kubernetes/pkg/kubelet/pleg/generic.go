@@ -76,6 +76,8 @@ type GenericPLEG struct {
 	runningMu sync.Mutex
 	// Indicates relisting related parameters
 	relistDuration *RelistDuration
+	// logger is used for contextual logging
+	logger klog.Logger
 	// relistRequests is the queue of on-demand pod relist requests.
 	relistRequests chan relistRequest
 	// globalRelistTimer controls the periodic global relist.
@@ -130,13 +132,14 @@ type podRecord struct {
 type podRecords map[types.UID]*podRecord
 
 // NewGenericPLEG instantiates a new GenericPLEG object and return it.
-func NewGenericPLEG(runtime kubecontainer.Runtime, eventChannel chan *PodLifecycleEvent,
+func NewGenericPLEG(logger klog.Logger, runtime kubecontainer.Runtime, eventChannel chan *PodLifecycleEvent,
 	relistDuration *RelistDuration, cache kubecontainer.Cache,
 	clock clock.Clock) PodLifecycleEventGenerator {
 	if cache == nil {
 		panic("cache cannot be nil")
 	}
 	return &GenericPLEG{
+		logger:         logger,
 		relistDuration: relistDuration,
 		runtime:        runtime,
 		eventChannel:   eventChannel,
@@ -155,7 +158,7 @@ func (g *GenericPLEG) Watch() chan *PodLifecycleEvent {
 }
 
 // Start spawns a goroutine to relist periodically.
-func (g *GenericPLEG) Start(ctx context.Context) {
+func (g *GenericPLEG) Start() {
 	g.runningMu.Lock()
 	defer g.runningMu.Unlock()
 	if g.isRunning {
@@ -169,7 +172,7 @@ func (g *GenericPLEG) Start(ctx context.Context) {
 	g.globalRelistTimer = g.clock.NewTimer(0)
 
 	go func() {
-		for g.workerLoopIteration(ctx) {
+		for g.workerLoopIteration() {
 		}
 	}()
 }
@@ -189,7 +192,7 @@ func (g *GenericPLEG) Stop() {
 // 1. stop: exit the workerLoop if stopCh has been closed.
 // 2. global relist: the global relist timer takes priority over single-pod relists.
 // 3. single pod relist: execute a request from the single-pod relist queue.
-func (g *GenericPLEG) workerLoopIteration(ctx context.Context) bool {
+func (g *GenericPLEG) workerLoopIteration() bool {
 	// Use non-blocking selects for prioritized selection.
 
 	// First priority: stopCh
@@ -202,7 +205,7 @@ func (g *GenericPLEG) workerLoopIteration(ctx context.Context) bool {
 	// Second priority: global Relist
 	select {
 	case <-g.globalRelistTimer.C():
-		g.Relist(ctx)
+		g.Relist()
 		g.globalRelistTimer.Reset(g.relistDuration.RelistPeriod)
 		return true
 	default:
@@ -213,12 +216,12 @@ func (g *GenericPLEG) workerLoopIteration(ctx context.Context) bool {
 	case <-g.stopCh:
 		return false
 	case <-g.globalRelistTimer.C():
-		g.Relist(ctx)
+		g.Relist()
 		g.globalRelistTimer.Reset(g.relistDuration.RelistPeriod)
 	case req := <-g.relistRequests:
 		if req.timestamp.After(g.getRelistTime()) {
 			// The request hasn't already been served by the global relist.
-			g.relistPod(ctx, req.podUID)
+			g.relistPod(req.podUID)
 		}
 	}
 
@@ -286,12 +289,13 @@ func (g *GenericPLEG) updateRelistTime(timestamp time.Time) {
 
 // Relist queries the container runtime for list of pods/containers, compare
 // with the internal pods/containers, and generates events accordingly.
-func (g *GenericPLEG) Relist(ctx context.Context) {
+func (g *GenericPLEG) Relist() {
 	g.relistLock.Lock()
 	defer g.relistLock.Unlock()
-	logger := klog.FromContext(ctx)
 
-	logger.V(5).Info("GenericPLEG: Relisting")
+	ctx := context.Background()
+
+	g.logger.V(5).Info("GenericPLEG: Relisting")
 
 	if lastRelistTime := g.getRelistTime(); !lastRelistTime.IsZero() {
 		metrics.PLEGRelistInterval.Observe(metrics.SinceInSeconds(lastRelistTime))
@@ -305,7 +309,7 @@ func (g *GenericPLEG) Relist(ctx context.Context) {
 	// Get all the pods.
 	podList, err := g.runtime.GetPods(ctx, true)
 	if err != nil {
-		logger.Error(err, "GenericPLEG: Unable to retrieve pods")
+		g.logger.Error(err, "GenericPLEG: Unable to retrieve pods")
 		return
 	}
 
@@ -330,7 +334,6 @@ func (g *GenericPLEG) Relist(ctx context.Context) {
 // status, updates the pod cache, and delivers the events. This function should only be called after
 // the current pod record has been updated.
 func (g *GenericPLEG) reconcilePodRecord(ctx context.Context, pid types.UID) {
-	logger := klog.FromContext(ctx)
 	// Compare the old and the current pods, and generate events.
 	oldPod := g.podRecords.getOld(pid)
 	pod := g.podRecords.getCurrent(pid)
@@ -338,7 +341,7 @@ func (g *GenericPLEG) reconcilePodRecord(ctx context.Context, pid types.UID) {
 	allContainers := getContainersFromPods(oldPod, pod)
 	var events []*PodLifecycleEvent
 	for _, container := range allContainers {
-		containerEvents := computeEvents(logger, oldPod, pod, &container.ID)
+		containerEvents := computeEvents(g.logger, oldPod, pod, &container.ID)
 		events = append(events, containerEvents...)
 	}
 
@@ -358,15 +361,19 @@ func (g *GenericPLEG) reconcilePodRecord(ctx context.Context, pid types.UID) {
 	// inspecting the pod and getting the PodStatus to update the cache
 	// serially may take a while. We should be aware of this and
 	// parallelize if needed.
-	status, err := g.updateCache(ctx, pod, pid)
+	status, updated, err := g.updateCache(ctx, pod, pid)
 	if err != nil {
 		// Rely on updateCache calling GetPodStatus to log the actual error.
-		logger.V(4).Info("PLEG: Ignoring events for pod", "pod", klog.KRef(pod.Namespace, pod.Name), "err", err)
+		g.logger.V(4).Info("PLEG: Ignoring events for pod", "pod", klog.KRef(pod.Namespace, pod.Name), "err", err)
 
 		// make sure we try to reinspect the pod during the next relisting
 		g.podsToReinspect.Store(pid, empty)
 
 		return
+	} else if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
+		if !updated {
+			return
+		}
 	}
 
 	if len(events) == 0 {
@@ -389,7 +396,7 @@ func (g *GenericPLEG) reconcilePodRecord(ctx context.Context, pid types.UID) {
 		case g.eventChannel <- events[i]:
 		default:
 			metrics.PLEGDiscardEvents.Inc()
-			logger.Error(nil, "Event channel is full, discard this relist() cycle event")
+			g.logger.Error(nil, "Event channel is full, discard this relist() cycle event")
 		}
 		// Log exit code of containers when they finished in a particular event
 		if events[i].Type == ContainerDied {
@@ -403,19 +410,20 @@ func (g *GenericPLEG) reconcilePodRecord(ctx context.Context, pid types.UID) {
 			}
 			if containerID, ok := events[i].Data.(string); ok {
 				if exitCode, ok := containerExitCode[containerID]; ok && pod != nil {
-					logger.V(2).Info("Generic (PLEG): container finished", "podID", pod.ID, "containerID", containerID, "exitCode", exitCode)
+					g.logger.V(2).Info("Generic (PLEG): container finished", "podID", pod.ID, "containerID", containerID, "exitCode", exitCode)
 				}
 			}
 		}
 	}
 }
 
-func (g *GenericPLEG) relistPod(ctx context.Context, podUID types.UID) {
+func (g *GenericPLEG) relistPod(podUID types.UID) {
 	g.relistLock.Lock()
 	defer g.relistLock.Unlock()
-	logger := klog.FromContext(ctx)
 
-	logger.V(5).Info("GenericPLEG: Relisting Pod", "podUID", podUID)
+	ctx := context.Background()
+
+	g.logger.V(5).Info("GenericPLEG: Relisting Pod", "podUID", podUID)
 
 	startTime := g.clock.Now()
 	defer func() {
@@ -425,7 +433,7 @@ func (g *GenericPLEG) relistPod(ctx context.Context, podUID types.UID) {
 	if err != nil {
 		// We don't need to do anything other than log the error here, since it will be retried by
 		// the next global relist.
-		logger.Error(err, "GenericPLEG: Unable to retrieve pod", "podUID", podUID)
+		g.logger.Error(err, "GenericPLEG: Unable to retrieve pod", "podUID", podUID)
 		return
 	}
 
@@ -505,15 +513,16 @@ func (g *GenericPLEG) getPodIPs(pid types.UID, status *kubecontainer.PodStatus) 
 	return oldStatus.IPs
 }
 
-// updateCache tries to update the pod status in the kubelet cache.
-func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, pid types.UID) (*kubecontainer.PodStatus, error) {
-	logger := klog.FromContext(ctx)
+// updateCache tries to update the pod status in the kubelet cache and returns true if the
+// pod status was actually updated in the cache. It will return false if the pod status
+// was ignored by the cache.
+func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, pid types.UID) (*kubecontainer.PodStatus, bool, error) {
 	if pod == nil {
 		// The pod is missing in the current relist. This means that
 		// the pod has no visible (active or inactive) containers.
-		logger.V(4).Info("PLEG: Delete status for pod", "podUID", string(pid))
+		g.logger.V(4).Info("PLEG: Delete status for pod", "podUID", string(pid))
 		g.cache.Delete(pid)
-		return nil, nil
+		return nil, true, nil
 	}
 
 	timestamp := pod.Timestamp
@@ -522,16 +531,16 @@ func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, p
 		// nolint:logcheck // Not using the result of klog.V inside the
 		// if branch is okay, we just use it to determine whether the
 		// additional "podStatus" key and its value should be added.
-		if logger.V(6).Enabled() {
-			logger.Error(err, "PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name), "podStatus", status)
+		if klog.V(6).Enabled() {
+			g.logger.Error(err, "PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name), "podStatus", status)
 		} else {
-			logger.Error(err, "PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name))
+			g.logger.Error(err, "PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name))
 		}
 	} else {
-		if klogV := logger.V(6); klogV.Enabled() {
-			logger.Info("PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name), "podStatus", status)
+		if klogV := g.logger.V(6); klogV.Enabled() {
+			g.logger.Info("PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name), "podStatus", status)
 		} else {
-			logger.V(4).Info("PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name))
+			g.logger.V(4).Info("PLEG: Write status", "pod", klog.KRef(pod.Namespace, pod.Name))
 		}
 		// Preserve the pod IP across cache updates if the new IP is empty.
 		// When a pod is torn down, kubelet may race with PLEG and retrieve
@@ -540,15 +549,28 @@ func (g *GenericPLEG) updateCache(ctx context.Context, pod *kubecontainer.Pod, p
 		status.IPs = g.getPodIPs(pid, status)
 	}
 
-	g.cache.Set(pod.ID, status, err, timestamp)
-	return status, err
+	// When we use Generic PLEG only, the PodStatus is saved in the cache without
+	// any validation of the existing status against the current timestamp.
+	// This works well when there is only Generic PLEG setting the PodStatus in the cache however,
+	// if we have multiple entities, such as Evented PLEG, while trying to set the PodStatus in the
+	// cache we may run into the racy timestamps given each of them were to calculate the timestamps
+	// in their respective execution flow. While Generic PLEG calculates this timestamp and gets
+	// the PodStatus, we can only calculate the corresponding timestamp in
+	// Evented PLEG after the event has been received by the Kubelet.
+	// For more details refer to:
+	// https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/3386-kubelet-evented-pleg#timestamp-of-the-pod-status
+	if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) && isEventedPLEGInUse() && status != nil {
+		timestamp = status.TimeStamp
+	}
+
+	return status, g.cache.Set(pod.ID, status, err, timestamp), err
 }
 
 func (g *GenericPLEG) RequestReinspect(podUID types.UID) {
 	g.podsToReinspect.Store(podUID, empty)
 }
 
-func (g *GenericPLEG) RequestRelist(logger klog.Logger, podUID types.UID) {
+func (g *GenericPLEG) RequestRelist(podUID types.UID) {
 	if !utilfeature.DefaultFeatureGate.Enabled(features.PLEGOnDemandRelist) {
 		return
 	}
@@ -556,7 +578,7 @@ func (g *GenericPLEG) RequestRelist(logger klog.Logger, podUID types.UID) {
 	select {
 	case g.relistRequests <- relistRequest{podUID, time.Now()}:
 	default:
-		logger.Error(nil, "Relist request channel full; dropping relist request", "podUID", podUID)
+		g.logger.Error(nil, "Relist request channel full; dropping relist request", "podUID", podUID)
 	}
 }
 

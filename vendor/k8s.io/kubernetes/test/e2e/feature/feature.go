@@ -25,12 +25,16 @@ import (
 // Please keep the list in alphabetical, case-sensitive
 // (upper before any lower case character) order.
 var (
-	// Owner: sig-api-machinery
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	APIServerIdentity = framework.WithFeature(framework.ValidFeatures.Add("APIServerIdentity"))
 
-	// Owner: sig-auth
-	// TODO: document the feature (when to use this feature for a test)
+	// Owner: sig-lifecycle
+	// This label is used for tests which need the following controllers to be enabled:
+	// - bootstrap-signer-controller
+	// - token-cleaner-controller
+	BootstrapTokens = framework.WithFeature(framework.ValidFeatures.Add("BootstrapTokens"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	BoundServiceAccountTokenVolume = framework.WithFeature(framework.ValidFeatures.Add("BoundServiceAccountTokenVolume"))
 
 	// Owner: sig-api-machinery
@@ -50,16 +54,13 @@ var (
 	// Marks test that exercise checkpointing of containers
 	CheckpointContainer = framework.WithFeature(framework.ValidFeatures.Add("CheckpointContainer"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	CloudProvider = framework.WithFeature(framework.ValidFeatures.Add("CloudProvider"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ClusterDowngrade = framework.WithFeature(framework.ValidFeatures.Add("ClusterDowngrade"))
 
-	// Owner: sig-autoscaling
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ClusterScaleUpBypassScheduler = framework.WithFeature(framework.ValidFeatures.Add("ClusterScaleUpBypassScheduler"))
 
 	// Owner: sig-autoscaling
@@ -68,15 +69,13 @@ var (
 	// Owner: sig-autoscaling
 	ClusterSizeAutoscalingScaleUp = framework.WithFeature(framework.ValidFeatures.Add("ClusterSizeAutoscalingScaleUp"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ClusterUpgrade = framework.WithFeature(framework.ValidFeatures.Add("ClusterUpgrade"))
 
-	// Owner: sig-api-machinery
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ComprehensiveNamespaceDraining = framework.WithFeature(framework.ValidFeatures.Add("ComprehensiveNamespaceDraining"))
 
-	// Owner: sig-node
+	// Onwer: sig-node
 	// Enables configuring per-container restart policy and restart policy rules.
 	ContainerRestartRules = framework.WithFeature(framework.ValidFeatures.Add("ContainerRestartRules"))
 
@@ -108,11 +107,11 @@ var (
 	// Testing device plugins
 	DevicePlugin = framework.WithFeature(framework.ValidFeatures.Add("DevicePlugin"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Downgrade = framework.WithFeature(framework.ValidFeatures.Add("Downgrade"))
 
-	// Owner: sig-node
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	// OWNER: sig-node
 	// Testing downward API huge pages
 	DownwardAPIHugePages = framework.WithFeature(framework.ValidFeatures.Add("DownwardAPIHugePages"))
 
@@ -130,28 +129,21 @@ var (
 	// their dependency on specific feature gates and the corresponding API groups.
 	DynamicResourceAllocation = framework.WithFeature(framework.ValidFeatures.Add("DynamicResourceAllocation"))
 
-	// Owner: sig-storage
-	// EmptyDirVolumeMode is used for tests that require the EmptyDirVolumeMode feature gate.
-	EmptyDirVolumeMode = framework.WithFeature(framework.ValidFeatures.Add("EmptyDirVolumeMode"))
-
 	// Owner: sig-node
 	// EnvFiles is used for testing the EnvFiles feature (file-based environment variables).
 	EnvFiles = framework.WithFeature(framework.ValidFeatures.Add("EnvFiles"))
 
-	// Owner: sig-storage
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	EphemeralStorage = framework.WithFeature(framework.ValidFeatures.Add("EphemeralStorage"))
 
 	// OWNER: sig-node
 	// Testing eviction manager
 	Eviction = framework.WithFeature(framework.ValidFeatures.Add("Eviction"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Example = framework.WithFeature(framework.ValidFeatures.Add("Example"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	ExperimentalResourceUsageTracking = framework.WithFeature(framework.ValidFeatures.Add("ExperimentalResourceUsageTracking"))
 
 	// OWNER: sig-storage
@@ -161,13 +153,23 @@ var (
 	// See https://github.com/kubernetes/kubernetes/issues/78737 for more details.
 	Flexvolumes = framework.WithFeature(framework.ValidFeatures.Add("Flexvolumes"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	GKENodePool = framework.WithFeature(framework.ValidFeatures.Add("GKENodePool"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	GPUClusterDowngrade = framework.WithFeature(framework.ValidFeatures.Add("GPUClusterDowngrade"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	GPUClusterUpgrade = framework.WithFeature(framework.ValidFeatures.Add("GPUClusterUpgrade"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	GPUDevicePlugin = framework.WithFeature(framework.ValidFeatures.Add("GPUDevicePlugin"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	GPUMasterUpgrade = framework.WithFeature(framework.ValidFeatures.Add("GPUMasterUpgrade"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	GPUUpgrade = framework.WithFeature(framework.ValidFeatures.Add("GPUUpgrade"))
 
 	// OWNER: sig-node
 	// Testing graceful node shutdown
@@ -177,19 +179,20 @@ var (
 	// GracefulNodeShutdown based on pod priority
 	GracefulNodeShutdownBasedOnPodPriority = framework.WithFeature(framework.ValidFeatures.Add("GracefulNodeShutdownBasedOnPodPriority"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	HAMaster = framework.WithFeature(framework.ValidFeatures.Add("HAMaster"))
 
-	// Owner: sig-autoscaling
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	HPA = framework.WithFeature(framework.ValidFeatures.Add("HPA"))
 
-	// Owner: sig-node
+	// OWNER: sig-autoscaling
+	// Marks tests that require HPA configurable tolerance (https://kep.k8s.io/4951).
+	HPAConfigurableTolerance = framework.WithFeature(framework.ValidFeatures.Add("HPAConfigurableTolerance"))
+
+	// owner: sig-node
 	HostAccess = framework.WithFeature(framework.ValidFeatures.Add("HostAccess"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	HugePages = framework.WithFeature(framework.ValidFeatures.Add("HugePages"))
 
 	// Owner: sig-network
@@ -207,6 +210,11 @@ var (
 	// InPlacePodVerticalScaling is used for testing in-place pod vertical scaling (https://kep.k8s.io/1287).
 	InPlacePodVerticalScaling = framework.WithFeature(framework.ValidFeatures.Add("InPlacePodVerticalScaling"))
 
+	// Owner: sig-network
+	// Marks tests that require a conforming implementation of
+	// Ingress.networking.k8s.io to be present.
+	Ingress = framework.WithFeature(framework.ValidFeatures.Add("Ingress"))
+
 	// Owner: sig-storage
 	// Marks tests that only work with a sigs.k8s.io/kind cluster
 	Kind = framework.WithFeature(framework.ValidFeatures.Add("Kind"))
@@ -214,6 +222,15 @@ var (
 	// Owner: sig-network
 	// Marks tests that require kube-dns-autoscaler
 	KubeDNSAutoscaler = framework.WithFeature(framework.ValidFeatures.Add("KubeDNSAutoscaler"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	KubeProxyDaemonSetDowngrade = framework.WithFeature(framework.ValidFeatures.Add("KubeProxyDaemonSetDowngrade"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	KubeProxyDaemonSetMigration = framework.WithFeature(framework.ValidFeatures.Add("KubeProxyDaemonSetMigration"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	KubeProxyDaemonSetUpgrade = framework.WithFeature(framework.ValidFeatures.Add("KubeProxyDaemonSetUpgrade"))
 
 	// Owner: sig-network
 	// Marks tests that require the kernel to have support for the nfacct subsystem.
@@ -224,16 +241,14 @@ var (
 	// Testing kubelet drop in KEP
 	KubeletConfigDropInDir = framework.WithFeature(framework.ValidFeatures.Add("KubeletConfigDropInDir"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	KubeletCredentialProviders = framework.WithFeature(framework.ValidFeatures.Add("KubeletCredentialProviders"))
 
 	// Owner: sig-node
-	// Marks tests that require a cluster with KubeletInUserNamespace <https://kep.k8s.io/2033>
-	KubeletInUserNamespace = framework.WithFeature(framework.ValidFeatures.Add("KubeletInUserNamespace"))
+	// Testing kubelet PSI metrics KEP
+	KubeletPSI = framework.WithFeature(framework.ValidFeatures.Add("KubeletPSI"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	KubeletSecurity = framework.WithFeature(framework.ValidFeatures.Add("KubeletSecurity"))
 
 	// KubeletSeparateDiskGC (SIG-node, used for testing separate image filesystem <https://kep.k8s.io/4191>)
@@ -243,29 +258,29 @@ var (
 	// Owner: sig-storage
 	LSCIQuotaMonitoring = framework.WithFeature(framework.ValidFeatures.Add("LSCIQuotaMonitoring"))
 
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	LabelSelector = framework.WithFeature(framework.ValidFeatures.Add("LabelSelector"))
+
 	// Owner: sig-network
 	// Marks tests that require a cloud provider that implements LoadBalancer Services
 	LoadBalancer = framework.WithFeature(framework.ValidFeatures.Add("LoadBalancer"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	LocalStorageCapacityIsolationQuota = framework.WithFeature(framework.ValidFeatures.Add("LocalStorageCapacityIsolationQuota"))
-
-	// Owner: sig-network
-	// Marks tests that require the service proxy to support localhost NodePort services
-	LocalhostNodePorts = framework.WithFeature(framework.ValidFeatures.Add("LocalhostNodePorts"))
 
 	// owning-sig: sig-node
 	// Marks a disruptive test for lock contention
 	LockContention = framework.WithFeature(framework.ValidFeatures.Add("LockContention"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	MasterUpgrade = framework.WithFeature(framework.ValidFeatures.Add("MasterUpgrade"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	MemoryManager = framework.WithFeature(framework.ValidFeatures.Add("MemoryManager"))
+
+	// Owner: sig-api-machinery
+	// Marks tests that enforce ordered namespace deletion.
+	MutatingAdmissionPolicy = framework.WithFeature(framework.ValidFeatures.Add("MutatingAdmissionPolicy"))
 
 	// Owner: sig-network
 	// Marks tests that require a conforming implementation of
@@ -293,8 +308,7 @@ var (
 	// Testing node allocatable validations
 	NodeAllocatable = framework.WithFeature(framework.ValidFeatures.Add("NodeAllocatable"))
 
-	// Owner: sig-auth
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	NodeAuthorizer = framework.WithFeature(framework.ValidFeatures.Add("NodeAuthorizer"))
 
 	// Owner: sig-windows, sig-node
@@ -315,8 +329,7 @@ var (
 	// Marks a single test that tests cluster DNS performance with many services.
 	PerformanceDNS = framework.WithFeature(framework.ValidFeatures.Add("PerformanceDNS"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	PodGarbageCollector = framework.WithFeature(framework.ValidFeatures.Add("PodGarbageCollector"))
 
 	// owner: sig-node
@@ -334,12 +347,10 @@ var (
 	// (used for testing specific log stream <https://kep.k8s.io/3288>)
 	PodLogsQuerySplitStreams = framework.WithFeature(framework.ValidFeatures.Add("PodLogsQuerySplitStreams"))
 
-	// Owner: sig-api-machinery
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	PodPriority = framework.WithFeature(framework.ValidFeatures.Add("PodPriority"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	PodReadyToStartContainersCondition = framework.WithFeature(framework.ValidFeatures.Add("PodReadyToStartContainersCondition"))
 
 	// Owner: sig-node
@@ -352,13 +363,22 @@ var (
 	// Used in combination with user namespaces
 	ProcMountType = framework.WithFeature(framework.ValidFeatures.Add("ProcMountType"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Reboot = framework.WithFeature(framework.ValidFeatures.Add("Reboot"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	ReclaimPolicy = framework.WithFeature(framework.ValidFeatures.Add("ReclaimPolicy"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	RegularResourceUsageTracking = framework.WithFeature(framework.ValidFeatures.Add("RegularResourceUsageTracking"))
+
+	// Owner: sig-network
+	// Marks tests of KEP-4427 that require the `RelaxedDNSSearchValidation` feature gate
+	RelaxedDNSSearchValidation = framework.WithFeature(framework.ValidFeatures.Add("RelaxedDNSSearchValidation"))
+
+	// Owner: sig-node
+	// resource health Status for device plugins and DRA <https://kep.k8s.io/4680>
+	ResourceHealthStatus = framework.WithFeature(framework.ValidFeatures.Add("ResourceHealthStatus"))
 
 	// Owner: sig-node
 	// Device Management metrics
@@ -387,9 +407,19 @@ var (
 	// Marks tests of the asynchronous preemption (KEP-4832) that require the `SchedulerAsyncPreemption` feature gate.
 	SchedulerAsyncPreemption = framework.WithFeature(framework.ValidFeatures.Add("SchedulerAsyncPreemption"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	SeccompDefault = framework.WithFeature(framework.ValidFeatures.Add("SeccompDefault"))
+
+	// Owner: sig-auth
+	// Marks tests that require a conforming implementation of
+	// Node claims for serviceaccounts. Typically this means that the
+	// ServiceAccountTokenNodeBindingValidation feature must be enabled.
+	ServiceAccountTokenNodeBindingValidation = framework.WithFeature(framework.ValidFeatures.Add("ServiceAccountTokenNodeBindingValidation"))
+
+	// Owner: sig-network
+	// Marks tests of KEP-1880 that require the `MultiCIDRServiceAllocator` feature gate
+	// and the networking.k8s.io/v1alpha1 API.
+	ServiceCIDRs = framework.WithFeature(framework.ValidFeatures.Add("ServiceCIDRs"))
 
 	// Owner: sig-storage
 	// KEP: https://kep.k8s.io/3314
@@ -400,21 +430,36 @@ var (
 	// - A storage driver that implements the CapSnapshotMetadata capability
 	SnapshotMetadata = framework.WithFeature(framework.ValidFeatures.Add("snapshotmetadata"))
 
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StackdriverAcceleratorMonitoring = framework.WithFeature(framework.ValidFeatures.Add("StackdriverAcceleratorMonitoring"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StackdriverCustomMetrics = framework.WithFeature(framework.ValidFeatures.Add("StackdriverCustomMetrics"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StackdriverExternalMetrics = framework.WithFeature(framework.ValidFeatures.Add("StackdriverExternalMetrics"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StackdriverMetadataAgent = framework.WithFeature(framework.ValidFeatures.Add("StackdriverMetadataAgent"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StackdriverMonitoring = framework.WithFeature(framework.ValidFeatures.Add("StackdriverMonitoring"))
+
 	// Tests marked with this feature require the kubelet to be running in standalone mode (--standalone-mode=true) like this:
 	// make test-e2e-node PARALLELISM=1 FOCUS="StandaloneMode" TEST_ARGS='--kubelet-flags="--fail-swap-on=false" --standalone-mode=true'
 	// Tests validating the behavior of kubelet when running without the API server.
 	StandaloneMode = framework.WithFeature(framework.ValidFeatures.Add("StandaloneMode"))
 
-	// Owner: sig-storage
-	// Tests marked with this feature exercise scheduling behavior that scores nodes based on CSI storage capacity.
-	StorageCapacityScoring = framework.WithFeature(framework.ValidFeatures.Add("StorageCapacityScoring"))
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StatefulSet = framework.WithFeature(framework.ValidFeatures.Add("StatefulSet"))
 
-	// Owner: sig-storage
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	StatefulUpgrade = framework.WithFeature(framework.ValidFeatures.Add("StatefulUpgrade"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	StorageProvider = framework.WithFeature(framework.ValidFeatures.Add("StorageProvider"))
 
-	// Owner: sig-api-machinery
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	StorageVersionAPI = framework.WithFeature(framework.ValidFeatures.Add("StorageVersionAPI"))
 
 	// Owner: sig-node
@@ -424,21 +469,26 @@ var (
 	// The Swap feature tests must run on nodes with the swap memory allocated and kubelet swap enabled. KEP-2400 (Node Swap Support)
 	Swap = framework.WithFeature(framework.ValidFeatures.Add("NodeSwap"))
 
-	// Owner: sig-node
 	SystemNodeCriticalPod = framework.WithFeature(framework.ValidFeatures.Add("SystemNodeCriticalPod"))
 
-	// Owner: sig-node
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	TopologyManager = framework.WithFeature(framework.ValidFeatures.Add("TopologyManager"))
 
-	// Owner: sig-cloud-provider
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Upgrade = framework.WithFeature(framework.ValidFeatures.Add("Upgrade"))
+
+	// Owner: sig-node
+	// Test marked with this feature must run on nodes where container runtime allows to pods with hostNetwork to use user namespaces.
+	// This feature can be removed once Containerd and CRI-O both added this support.
+	UserNamespacesHostNetworkSupport = framework.WithFeature(framework.ValidFeatures.Add("UserNamespacesHostNetworkSupport"))
 
 	// UserNamespacesSupport is in test-infra nodes that have runtimes with user-namespaces
 	// support. It will be dropped after containerd 1.7 support is removed from CI.
 	// Owner: sig-node
 	UserNamespacesSupport = framework.WithFeature(framework.ValidFeatures.Add("UserNamespacesSupport"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	ValidatingAdmissionPolicy = framework.WithFeature(framework.ValidFeatures.Add("ValidatingAdmissionPolicy"))
 
 	// Owner: sig-storage
 	// TODO: Remove it once the csi driver is promoted to GA and the manifest is updated.
@@ -448,28 +498,25 @@ var (
 	// Volume group snapshot tests
 	VolumeGroupSnapshotDataSource = framework.WithFeature(framework.ValidFeatures.Add("volumegroupsnapshot"))
 
-	// Owner: sig-storage
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	VolumeSnapshotDataSource = framework.WithFeature(framework.ValidFeatures.Add("VolumeSnapshotDataSource"))
 
-	// Owner: sig-storage
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	VolumeSourceXFS = framework.WithFeature(framework.ValidFeatures.Add("VolumeSourceXFS"))
 
-	// Owner: sig-storage
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Volumes = framework.WithFeature(framework.ValidFeatures.Add("Volumes"))
 
-	// Owner: sig-windows
-	// Indicates that tests labeled with this feature depend on Windows and thus may only be run on Windows nodes.
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
+	Vsphere = framework.WithFeature(framework.ValidFeatures.Add("vsphere"))
+
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	Windows = framework.WithFeature(framework.ValidFeatures.Add("Windows"))
 
-	// Owner: sig-windows
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	WindowsHostProcessContainers = framework.WithFeature(framework.ValidFeatures.Add("WindowsHostProcessContainers"))
 
-	// Owner: sig-windows
-	// TODO: document the feature (when to use this feature for a test)
+	// TODO: document the feature (owning SIG, when to use this feature for a test)
 	WindowsHyperVContainers = framework.WithFeature(framework.ValidFeatures.Add("WindowsHyperVContainers"))
 )
 

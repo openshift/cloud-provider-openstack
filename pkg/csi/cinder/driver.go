@@ -74,7 +74,7 @@ type Driver struct {
 	name         string
 	fqVersion    string //Fully qualified version in format {Version}@{CPO version}
 	endpoint     string
-	clusterID    string
+	cluster      string
 	withTopology bool
 	attachMode   string
 

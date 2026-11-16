@@ -35,6 +35,7 @@ import (
 	e2ekubectl "k8s.io/kubernetes/test/e2e/framework/kubectl"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2epv "k8s.io/kubernetes/test/e2e/framework/pv"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	e2estatefulset "k8s.io/kubernetes/test/e2e/framework/statefulset"
 	e2evolume "k8s.io/kubernetes/test/e2e/framework/volume"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
@@ -83,15 +84,14 @@ func InitCustomGroupSnapshottableTestSuite(patterns []storageframework.TestPatte
 }
 
 // SkipUnsupportedTests skips tests if the driver does not support group snapshots.
-func (s *VolumeGroupSnapshottableTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
+func (s *VolumeGroupSnapshottableTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
 	// Check preconditions.
 	dInfo := driver.GetDriverInfo()
 	ok := false
 	_, ok = driver.(storageframework.VolumeGroupSnapshottableTestDriver)
 	if !dInfo.Capabilities[storageframework.CapVolumeGroupSnapshot] || !ok {
-		return fmt.Sprintf("Driver %q does not support group snapshots", dInfo.Name)
+		e2eskipper.Skipf("Driver %q does not support group snapshots - skipping", dInfo.Name)
 	}
-	return ""
 }
 
 // GetTestSuiteInfo returns the test suite information for the VolumeGroupSnapshottableTestSuite.

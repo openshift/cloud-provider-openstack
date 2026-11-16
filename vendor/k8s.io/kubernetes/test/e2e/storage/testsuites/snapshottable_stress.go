@@ -20,7 +20,6 @@ package testsuites
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/onsi/ginkgo/v2"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2epv "k8s.io/kubernetes/test/e2e/framework/pv"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	e2evolume "k8s.io/kubernetes/test/e2e/framework/volume"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
 	storageutils "k8s.io/kubernetes/test/e2e/storage/utils"
@@ -87,11 +87,11 @@ func (t *snapshottableStressTestSuite) GetTestSuiteInfo() storageframework.TestS
 	return t.tsInfo
 }
 
-func (t *snapshottableStressTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
+func (t *snapshottableStressTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
 	driverInfo := driver.GetDriverInfo()
 	var ok bool
 	if driverInfo.VolumeSnapshotStressTestOptions == nil {
-		return fmt.Sprintf("Driver %s doesn't specify snapshot stress test options", driverInfo.Name)
+		e2eskipper.Skipf("Driver %s doesn't specify snapshot stress test options -- skipping", driverInfo.Name)
 	}
 	if driverInfo.VolumeSnapshotStressTestOptions.NumPods <= 0 {
 		framework.Failf("NumPods in snapshot stress test options must be a positive integer, received: %d", driverInfo.VolumeSnapshotStressTestOptions.NumPods)
@@ -101,14 +101,13 @@ func (t *snapshottableStressTestSuite) SkipUnsupportedTests(driver storageframew
 	}
 	_, ok = driver.(storageframework.SnapshottableTestDriver)
 	if !driverInfo.Capabilities[storageframework.CapSnapshotDataSource] || !ok {
-		return fmt.Sprintf("Driver %q doesn't implement SnapshottableTestDriver", driverInfo.Name)
+		e2eskipper.Skipf("Driver %q doesn't implement SnapshottableTestDriver - skipping", driverInfo.Name)
 	}
 
 	_, ok = driver.(storageframework.DynamicPVTestDriver)
 	if !ok {
-		return fmt.Sprintf("Driver %s doesn't implement DynamicPVTestDriver", driverInfo.Name)
+		e2eskipper.Skipf("Driver %s doesn't implement DynamicPVTestDriver -- skipping", driverInfo.Name)
 	}
-	return ""
 }
 
 func (t *snapshottableStressTestSuite) DefineTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
@@ -121,7 +120,7 @@ func (t *snapshottableStressTestSuite) DefineTests(driver storageframework.TestD
 
 	// Beware that it also registers an AfterEach which renders f unusable. Any code using
 	// f must run inside an It or Context callback.
-	f := framework.NewFrameworkWithCustomTimeouts("snapshottable-stress", storageframework.GetDriverTimeouts(driver))
+	f := framework.NewDefaultFramework("snapshottable-stress")
 	f.NamespacePodSecurityLevel = admissionapi.LevelPrivileged
 
 	init := func(ctx context.Context) {

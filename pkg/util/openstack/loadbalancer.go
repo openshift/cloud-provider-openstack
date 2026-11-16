@@ -257,9 +257,25 @@ func UpdateLoadBalancerTags(ctx context.Context, client *gophercloud.ServiceClie
 		Tags: &tags,
 	}
 
-	_, err := UpdateLoadBalancer(ctx, client, lbID, updateOpts)
+	_, err := UpdateLoadBalancer(client, lbID, updateOpts)
 
 	return err
+}
+
+// UpdateLoadBalancer updates the load balancer
+func UpdateLoadBalancer(client *gophercloud.ServiceClient, lbID string, updateOpts loadbalancers.UpdateOpts) (*loadbalancers.LoadBalancer, error) {
+	mc := metrics.NewMetricContext("loadbalancer", "update")
+	_, err := loadbalancers.Update(client, lbID, updateOpts).Extract()
+	if mc.ObserveRequest(err) != nil {
+		return nil, err
+	}
+
+	lb, err := WaitActiveAndGetLoadBalancer(client, lbID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating: %v", lbID, err)
+	}
+
+	return lb, nil
 }
 
 // UpdateLoadBalancer updates the load balancer
@@ -557,14 +573,14 @@ func GetMembersbyPool(ctx context.Context, client *gophercloud.ServiceClient, po
 }
 
 // UpdatePool updates a pool and wait for the lb active
-func UpdatePool(ctx context.Context, client *gophercloud.ServiceClient, lbID string, poolID string, opts pools.UpdateOpts) error {
+func UpdatePool(client *gophercloud.ServiceClient, lbID string, poolID string, opts pools.UpdateOpts) error {
 	mc := metrics.NewMetricContext("loadbalancer_pool", "update")
-	_, err := pools.Update(ctx, client, poolID, opts).Extract()
+	_, err := pools.Update(client, poolID, opts).Extract()
 	if mc.ObserveRequest(err) != nil {
 		return err
 	}
 
-	if _, err := WaitActiveAndGetLoadBalancer(ctx, client, lbID); err != nil {
+	if _, err := WaitActiveAndGetLoadBalancer(client, lbID); err != nil {
 		return fmt.Errorf("failed to wait for load balancer %s ACTIVE after updating pool: %v", lbID, err)
 	}
 

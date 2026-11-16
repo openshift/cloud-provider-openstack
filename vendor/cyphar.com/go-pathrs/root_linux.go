@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: MPL-2.0
 /*
  * libpathrs: safe path resolution on Linux
+ * Copyright (C) 2019-2025 Aleksa Sarai <cyphar@cyphar.com>
  * Copyright (C) 2019-2025 SUSE LLC
- * Copyright (C) 2026 Aleksa Sarai <cyphar@cyphar.com>
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -19,8 +19,6 @@ import (
 	"os"
 	"syscall"
 
-	"golang.org/x/sys/unix"
-
 	"cyphar.com/go-pathrs/internal/fdutils"
 	"cyphar.com/go-pathrs/internal/libpathrs"
 )
@@ -29,7 +27,7 @@ import (
 // purpose of this "root handle" is to perform operations within the directory
 // tree, or to get a [Handle] to inodes within the directory tree.
 //
-// At time of writing, it is considered a *VERY BAD IDEA* to open a Root
+// At time of writing, it is considered a *VERY BAD IDEA* to open a [Root]
 // inside a possibly-attacker-controlled directory tree. While we do have
 // protections that should defend against it, it's far more dangerous than just
 // opening a directory tree which is not inside a potentially-untrusted
@@ -70,7 +68,7 @@ func RootFromFile(file *os.File) (*Root, error) {
 //
 // All symlinks (including trailing symlinks) are followed, but they are
 // resolved within the rootfs. If you wish to open a handle to the symlink
-// itself, use [Root.ResolveNoFollow].
+// itself, use [ResolveNoFollow].
 func (r *Root) Resolve(path string) (*Handle, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootResolve(rootFd, path)
@@ -85,10 +83,10 @@ func (r *Root) Resolve(path string) (*Handle, error) {
 	})
 }
 
-// ResolveNoFollow is effectively an [unix.O_NOFOLLOW] version of
-// [Root.Resolve]. Their behaviour is identical, except that *trailing*
-// symlinks will not be followed. If the final component is a trailing symlink,
-// an [unix.O_PATH]|[unix.O_NOFOLLOW] handle to the symlink itself is returned.
+// ResolveNoFollow is effectively an O_NOFOLLOW version of [Resolve]. Their
+// behaviour is identical, except that *trailing* symlinks will not be
+// followed. If the final component is a trailing symlink, an O_PATH|O_NOFOLLOW
+// handle to the symlink itself is returned.
 func (r *Root) ResolveNoFollow(path string) (*Handle, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*Handle, error) {
 		handleFd, err := libpathrs.InRootResolveNoFollow(rootFd, path)
@@ -103,29 +101,29 @@ func (r *Root) ResolveNoFollow(path string) (*Handle, error) {
 	})
 }
 
-// Open is effectively shorthand for [Root.Resolve] followed by [Handle.Open],
-// but can be slightly more efficient (it reduces CGo overhead and the number
-// of syscalls used when using the openat2-based resolver) and is arguably more
+// Open is effectively shorthand for [Resolve] followed by [Handle.Open], but
+// can be slightly more efficient (it reduces CGo overhead and the number of
+// syscalls used when using the openat2-based resolver) and is arguably more
 // ergonomic to use.
 //
 // This is effectively equivalent to [os.Open].
 func (r *Root) Open(path string) (*os.File, error) {
-	return r.OpenFile(path, unix.O_RDONLY)
+	return r.OpenFile(path, os.O_RDONLY)
 }
 
-// OpenFile is effectively shorthand for [Root.Resolve] followed by
+// OpenFile is effectively shorthand for [Resolve] followed by
 // [Handle.OpenFile], but can be slightly more efficient (it reduces CGo
 // overhead and the number of syscalls used when using the openat2-based
 // resolver) and is arguably more ergonomic to use.
 //
-// However, if flags contains [unix.O_NOFOLLOW] and the path is a symlink, then
+// However, if flags contains os.O_NOFOLLOW and the path is a symlink, then
 // OpenFile's behaviour will match that of openat2. In most cases an error will
-// be returned, but if [unix.O_PATH] is provided along with [unix.O_NOFOLLOW]
-// then a file equivalent to [Root.ResolveNoFollow] will be returned instead.
+// be returned, but if os.O_PATH is provided along with os.O_NOFOLLOW then a
+// file equivalent to [ResolveNoFollow] will be returned instead.
 //
-// This is effectively equivalent to [os.OpenFile], except that [unix.O_CREAT]
-// is not supported.
-func (r *Root) OpenFile(path string, flags uint64) (*os.File, error) {
+// This is effectively equivalent to [os.OpenFile], except that os.O_CREAT is
+// not supported.
+func (r *Root) OpenFile(path string, flags int) (*os.File, error) {
 	return fdutils.WithFileFd(r.inner, func(rootFd uintptr) (*os.File, error) {
 		fd, err := libpathrs.InRootOpen(rootFd, path, flags)
 		if err != nil {
@@ -141,7 +139,7 @@ func (r *Root) OpenFile(path string, flags uint64) (*os.File, error) {
 //
 // Unlike [os.Create], if the file already exists an error is created rather
 // than the file being opened and truncated.
-func (r *Root) Create(path string, flags uint64, mode os.FileMode) (*os.File, error) {
+func (r *Root) Create(path string, flags int, mode os.FileMode) (*os.File, error) {
 	unixMode, err := toUnixMode(mode, false)
 	if err != nil {
 		return nil, err
@@ -157,9 +155,9 @@ func (r *Root) Create(path string, flags uint64, mode os.FileMode) (*os.File, er
 
 // Rename two paths within a [Root]'s directory tree. The flags argument is
 // identical to the RENAME_* flags to the renameat2(2) system call.
-func (r *Root) Rename(src, dst string, flags uint64) error {
+func (r *Root) Rename(src, dst string, flags uint) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootRename(rootFd, src, rootFd, dst, flags)
+		err := libpathrs.InRootRename(rootFd, src, dst, flags)
 		return struct{}{}, err
 	})
 	return err
@@ -279,26 +277,26 @@ func (r *Root) Mknod(path string, mode os.FileMode, dev uint64) error {
 }
 
 // Symlink creates a symlink within a [Root]'s directory tree. The symlink is
-// created at newname and is a link to oldname.
+// created at path and is a link to target.
 //
 // This is effectively equivalent to [os.Symlink].
-func (r *Root) Symlink(oldname, newname string) error {
+func (r *Root) Symlink(path, target string) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootSymlink(oldname, rootFd, newname)
+		err := libpathrs.InRootSymlink(rootFd, path, target)
 		return struct{}{}, err
 	})
 	return err
 }
 
 // Hardlink creates a hardlink within a [Root]'s directory tree. The hardlink
-// is created at newname and is a link to oldname. Both paths are within the
+// is created at path and is a link to target. Both paths are within the
 // [Root]'s directory tree (you cannot hardlink to a different [Root] or the
 // host).
 //
 // This is effectively equivalent to [os.Link].
-func (r *Root) Hardlink(oldname, newname string) error {
+func (r *Root) Hardlink(path, target string) error {
 	_, err := fdutils.WithFileFd(r.inner, func(rootFd uintptr) (struct{}, error) {
-		err := libpathrs.InRootHardlink(rootFd, oldname, rootFd, newname, 0)
+		err := libpathrs.InRootHardlink(rootFd, path, target)
 		return struct{}{}, err
 	})
 	return err

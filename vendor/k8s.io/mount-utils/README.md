@@ -30,7 +30,7 @@ You can reach the maintainers of this repository at:
 Participation in the Kubernetes community is governed by the [Kubernetes
 Code of Conduct](code-of-conduct.md).
 
-### Contribution Guidelines
+### Contibution Guidelines
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 

@@ -40,6 +40,7 @@ import (
 	e2enode "k8s.io/kubernetes/test/e2e/framework/node"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 	e2epv "k8s.io/kubernetes/test/e2e/framework/pv"
+	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
 	storageframework "k8s.io/kubernetes/test/e2e/storage/framework"
 	storageutils "k8s.io/kubernetes/test/e2e/storage/utils"
 	admissionapi "k8s.io/pod-security-admission/api"
@@ -86,15 +87,14 @@ func (t *volumeLimitsTestSuite) GetTestSuiteInfo() storageframework.TestSuiteInf
 	return t.tsInfo
 }
 
-func (t *volumeLimitsTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
+func (t *volumeLimitsTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
 	if pattern.VolType != storageframework.DynamicPV {
-		return fmt.Sprintf("Suite %q does not support %v", t.tsInfo.Name, pattern.VolType)
+		e2eskipper.Skipf("Suite %q does not support %v", t.tsInfo.Name, pattern.VolType)
 	}
 	dInfo := driver.GetDriverInfo()
 	if !dInfo.Capabilities[storageframework.CapVolumeLimits] {
-		return fmt.Sprintf("Driver %s does not support volume limits", dInfo.Name)
+		e2eskipper.Skipf("Driver %s does not support volume limits", dInfo.Name)
 	}
-	return ""
 }
 
 func (t *volumeLimitsTestSuite) DefineTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {

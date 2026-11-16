@@ -93,19 +93,24 @@ func (t *volumesTestSuite) GetTestSuiteInfo() storageframework.TestSuiteInfo {
 	return t.tsInfo
 }
 
-func (t *volumesTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) string {
+func (t *volumesTestSuite) SkipUnsupportedTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
 	if pattern.VolMode == v1.PersistentVolumeBlock {
-		return checkIfBlockNotSupported(driver)
+		skipTestIfBlockNotSupported(driver)
 	}
-	return ""
 }
 
-func checkIfBlockNotSupported(driver storageframework.TestDriver) string {
+func skipExecTest(driver storageframework.TestDriver) {
+	dInfo := driver.GetDriverInfo()
+	if !dInfo.Capabilities[storageframework.CapExec] {
+		e2eskipper.Skipf("Driver %q does not support exec - skipping", dInfo.Name)
+	}
+}
+
+func skipTestIfBlockNotSupported(driver storageframework.TestDriver) {
 	dInfo := driver.GetDriverInfo()
 	if !dInfo.Capabilities[storageframework.CapBlock] {
-		return fmt.Sprintf("Driver %q does not provide raw block", dInfo.Name)
+		e2eskipper.Skipf("Driver %q does not provide raw block - skipping", dInfo.Name)
 	}
-	return ""
 }
 
 func (t *volumesTestSuite) DefineTests(driver storageframework.TestDriver, pattern storageframework.TestPattern) {
@@ -182,9 +187,9 @@ func (t *volumesTestSuite) DefineTests(driver storageframework.TestDriver, patte
 	})
 
 	// Exec works only on filesystem volumes
-	if pattern.VolMode != v1.PersistentVolumeBlock &&
-		driver.GetDriverInfo().Capabilities[storageframework.CapExec] {
+	if pattern.VolMode != v1.PersistentVolumeBlock {
 		ginkgo.It("should allow exec of files on the volume", func(ctx context.Context) {
+			skipExecTest(driver)
 			init(ctx)
 			ginkgo.DeferCleanup(cleanup)
 

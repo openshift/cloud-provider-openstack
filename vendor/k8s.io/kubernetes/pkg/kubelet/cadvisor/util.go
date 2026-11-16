@@ -19,7 +19,8 @@ package cadvisor
 import (
 	"strings"
 
-	cadvisorapi "github.com/google/cadvisor/lib/model"
+	cadvisorapi "github.com/google/cadvisor/info/v1"
+	cadvisorapi2 "github.com/google/cadvisor/info/v2"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -59,11 +60,11 @@ func CapacityFromMachineInfo(info *cadvisorapi.MachineInfo) v1.ResourceList {
 }
 
 // EphemeralStorageCapacityFromFsInfo returns the capacity of the ephemeral storage from the FsInfo.
-func EphemeralStorageCapacityFromFsInfo(info cadvisorapi.FsInfo) v1.ResourceList {
+func EphemeralStorageCapacityFromFsInfo(info cadvisorapi2.FsInfo) v1.ResourceList {
 	c := v1.ResourceList{
 		v1.ResourceEphemeralStorage: *resource.NewQuantity(
 			int64(info.Capacity),
-			resource.DecimalSI),
+			resource.BinarySI),
 	}
 	return c
 }
