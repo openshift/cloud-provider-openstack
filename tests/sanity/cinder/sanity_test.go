@@ -33,8 +33,8 @@ func TestDriver(t *testing.T) {
 		NodeVolumeAttachLimit: 200,
 	}
 
-	d.SetupControllerService(openstack.OsInstances, nil)
-	d.SetupNodeService(fakemnt, fakemeta, fakeOpts, map[string]string{}, nil, nil, "", openstack.OsInstances)
+	d.SetupControllerService(openstack.OsInstances)
+	d.SetupNodeService(fakemnt, fakemeta, fakeOpts, map[string]string{})
 
 	// TODO: Stop call
 

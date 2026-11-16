@@ -59,7 +59,8 @@ metadata:
   namespace: monitoring
 spec:
   endpoints:
-  - interval: 30s
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
     port: http
     scheme: https
     tlsConfig:

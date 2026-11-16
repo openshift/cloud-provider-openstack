@@ -1,9 +1,11 @@
 
+*.json
 *.sublime-project
 *.sublime-workspace
 *.swp
 .idea
 .DS_Store
+vendor
 
 # OSX leaves these everywhere on SMB shares
 ._*
@@ -109,6 +111,9 @@ network_closure.sh
 # Downloaded Kubernetes binary release
 /kubernetes/
 
+# direnv .envrc files
+.envrc
+
 # Downloaded kubernetes binary release tar ball
 kubernetes.tar.gz
 
@@ -154,9 +159,3 @@ zz_generated.openapi.go
 
 # local gopath
 .go
-
-# Openstack credential file
-clouds.yaml
-
-# Generated Python gRPC stubs (built by sidecar/generate_proto.sh)
-sidecar/osbrick/gen/

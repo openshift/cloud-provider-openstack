@@ -29,7 +29,7 @@ separate PRs:
     `github.com/gophercloud/gophercloud` before bumping the version of
     `k8s.io/kubernetes`.
 
-3. Bump the version of `k8s.io/kubernetes` to the latest minor version.
+2. Bump the version of `k8s.io/kubernetes` to the latest minor version.
 
     ```bash
     go get -u k8s.io/kubernetes@latest
@@ -47,7 +47,7 @@ separate PRs:
 
     Example: https://github.com/kubernetes/cloud-provider-openstack/pull/3010
 
-4. Bump remaining dependencies.
+3. Bump remaining dependencies.
 
     Once again, pay close attention to any major version bumps of packages,
     ensuring API changes are accounted for.
@@ -61,169 +61,69 @@ dependency or sidecar container.
 
 ## Making a Release
 
-> [!NOTE]
-> This section only applies to releasing a new version of
-> cloud-provider-openstack itself. If you are just updating the Helm Charts,
-> refer to [Helm Charts](#helm-charts) below.
-
-### Major releases (`X.Y.0`)
-
-1. Checkout the `master` branch.
+1. Checkout the release branch.
 
     ```bash
     $ git fetch upstream
-    $ git checkout master
-    $ git pull --rebase upstream master
+    $ git pull upstream master
     ```
 
-1. Bump the release version.
+2. Update the minor version with the expected version.
 
-    Run `hack/bump-release.py`, which detects the current branch automatically
-    and updates the Helm chart versions (`charts/`) and all image references in
-    `docs/`, `manifests/`, and `examples/`:
+    Make changes in the `docs/manifests/tests/examples` directories using the
+    `hack/bump-release.sh` script by running the following command:
 
     ```bash
-    $ uv run hack/bump-release.py
+    $ hack/bump-release.sh 28 29 0
     ```
 
-    Ensure that you double-check the diff before committing the changes.
-    Non-related changes must not be shipped.
+    This will replace `1.28.x` with `1.29.0` strings in the
+    `docs/manifests/tests/examples` directories. Ensure that you double-check the
+    diff before committing the changes. Non-related changes must not be shipped.
 
-1. Update the k3s and kubernetes-test versions used in our tests with the expected version.
+3. Create a new pull request (PR) and make sure all CI checks have passed.
 
-1. Create a new pull request (PR) and make sure all CI checks have passed.
-
-1. Make a `vX.Y.0` release tag and push it to the upstream repository.
+4. Once the PR is merged, make a tag and push it to the upstream repository.
 
     ```bash
     $ git checkout master
     $ git pull upstream master
-    $ git tag vX.Y.0
-    $ git push upstream vX.Y.0
-    ```
-
-    This will kick the [`cloud-provider-openstack-push-images`
-    job](https://prow.k8s.io/job-history/gs/kubernetes-ci-logs/logs/cloud-provider-openstack-push-images)
-    and will result in new container images being pushed to [the staging
-    area](https://console.cloud.google.com/artifacts/docker/k8s-staging-provider-os/us/gcr.io).
-
-    Tags will also be automatically be created for any Helm Charts that have
-    changed their version (i.e. `openstack-cloud-controller-manager-X.Y.Z`,
-    `openstack-cinder-csi-X.Y.Z`, and `openstack-manila-csi-X.Y.Z`).
-
-1. Make a `release-X.Y` release branch and push it to the upstream repository
-
-    ```bash
+    $ git tag vX.Y.Z
+    $ git push upstream vX.Y.Z
     $ git checkout -b release-X.Y
     $ git push origin release-X.Y
     ```
 
-1. Reset the `version` field of the Helm Charts to `2.{X+1}.0-dev`.
+    New [Docker images](https://console.cloud.google.com/gcr/images/k8s-staging-provider-os) will be built.
 
-    Leave `appVersion` set to the version just released (e.g. `vX.Y.0`).
-    The `hack/bump-release.py` script relies on this value when computing
-    the next release version, reading it to determine the current minor and
-    validates that the chart `version` is already at the next minor's `dev`
-    placeholder.
+6. Make PR modifying [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml) to promote gcr.io images to registry.k8s.io. The point is to copy the proper image sha256 hashes from the staging repository to the images.yaml.
 
-    Any bugfixes for the Helm Charts must be backported to the `release-*`
-    stable branches and released from there. See [Helm Charts](#helm-charts)
-    below for details.
-
-1. Make PR modifying
-   [images.yaml](https://github.com/kubernetes/k8s.io/blob/main/registry.k8s.io/images/k8s-staging-provider-os/images.yaml)
-   to promote staging images to registry.k8s.io. The point is to copy the proper image
-   sha256 hashes from the staging repository to the `images.yaml`.
-
-    Use `hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to
-    verify the digests before submitting the PR.
+    Use `hack/release-image-digests.sh` script and `hack/verify-image-digests.sh` to verify the digests before submitting the PR.
 
     ```bash
     $ ./hack/release-image-digests.sh ../k8s.io/registry.k8s.io/images/k8s-staging-provider-os/images.yaml vX.Y.Z
     ```
 
-    Generate a PR with the updated `images.yaml` file. Make sure to review the changes
-    and ensure that the correct images are being promoted.
+    Generate a PR with the updated `images.yaml` file. Make sure to review the changes and ensure that the correct images are being promoted.
 
-1. Once images are promoted (takes about 30 minutes) create release notes using the
-   "Generate release notes" button in the GitHub "New release" UI and publish the
-   release.
+7. Once images are promoted (takes about 30 minutes) create release notes using the "Generate release notes" button in the GitHub "New release" UI and publish the release.
 
-1. Update `kubernetes/test-infra` to add jobs for the new release branch in the
-   [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack)
-   directory.
+8. Update the helm chart version with the expected version.
 
-    This is generally as simple as copying the `release-master` file to `release-X.Y`,
-    adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations,
-    and updating the branch specifiers.
-
-### Minor releases (`X.Y.Z`, `Z` > 0)
-
-The release process for a minor release is the same as for major releases with
-the following differences:
-
-1. Check out the `release-X.Y` branch and run the `master` version of
-   `hack/bump-release.py`.
+    Make changes in the `charts` directory using the
+    `hack/bump-release.sh` script by running the following command:
 
     ```bash
-    $ git fetch upstream
-    $ git checkout release-X.Y
-    $ git pull --rebase upstream release-X.Y
-    $ tmp=$(mktemp --suffix=.py)
-    $ git show upstream/master:hack/bump-release.py > "$tmp"
-    $ uv run "$tmp"
-    $ rm "$tmp"
+    $ hack/bump-charts.sh 28 29 0
     ```
 
-    The script must be run from the release branch so it can detect it is on a
-    stable branch. Running the `master` version ensures you always use the
-    latest version of the script.
+    This will replace `1.28.x`/`2.28.x` with `1.29.0`/`2.29.0` strings in the
+    `docs/manifests/tests/examples` directories. Ensure that you double-check the
+    diff before committing the changes. Non-related changes must not be shipped.
 
-    The script automatically bumps both `appVersion` and `version` in all Helm
-    Charts (whereas a chart-only release on a stable branch bumps only the
-    `version` of affected charts).
+    Make a PR to bump the chart version in the `charts` directory. Once the PR is
+    merged, the chart will be automatically published to the repository registry.
 
-1. It is not necessary to create a new release branch or add new CI jobs.
+9. Update `kubernetes/test-infra` to add jobs for the new release branch in the [`config/jobs/kubernetes/cloud-provider-openstack`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes/cloud-provider-openstack) directory.
 
-## Helm Charts
-
-### Release tag types
-
-There are four independent release artifacts, each with its own tag:
-
-- The overall CPO binary release (e.g. `v1.37.0`)
-- The CCM chart release (e.g. `openstack-cloud-controller-manager-2.36.0`)
-- The Cinder CSI chart release (e.g. `openstack-cinder-csi-2.36.0`)
-- The Manila CSI chart release (e.g. `openstack-manila-csi-2.36.0`)
-
-A CPO binary release always triggers new versions of all three charts (because
-all charts reference the CPO image via `appVersion`). A chart-only release —
-where only chart files change with no changes to `cmd/` or `pkg/` — produces
-new chart tags for the affected charts without a new CPO binary tag.
-
-### Versioning on `master`
-
-Chart versions on `master` use a `-dev` pre-release suffix (e.g.
-`2.37.0-dev`) and are **not** bumped for individual PRs. The `appVersion`
-field reflects the most recently published CPO release. Version bumps only
-happen at release time (see [Major releases](#major-releases-xy0) above).
-
-### Versioning on `release-*` branches
-
-On `release-*` branches the chart `version` **should** be bumped for every
-backported change to a chart or to CPO code (`cmd/`, `pkg/`). This can be done
-in the backport PR itself or later via a separate PR.
-
-Run `hack/bump-release.py` from the `release-*` branch to apply the correct
-bump automatically. The script compares the branch tip against the most recent
-CPO tag (e.g. `v1.37.0`) and determines what changed:
-
-- **CPO code changed** (`cmd/` or `pkg/`): bumps `appVersion` in all charts,
-  bumps `version` in all charts, and updates image references in `docs/`,
-  `manifests/`, and `examples/`.
-- **Only chart files changed**: bumps `version` only in the charts that
-  changed; `appVersion` and image references are left untouched.
-
-Once a version change is merged, tags are automatically created for any charts
-whose `version` changed (i.e. `openstack-cloud-controller-manager-X.Y.Z`,
-`openstack-cinder-csi-X.Y.Z`, and `openstack-manila-csi-X.Y.Z`).
+    This is generally as simple as copying the `release-master` file to `release-X.Y`, adding `--release-XY` suffixes to the job names and `testgrid-tab-name` annotations, and updating the branch specifiers.

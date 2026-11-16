@@ -18,7 +18,6 @@ package cinder
 
 import (
 	"context"
-	"time"
 
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/backups"
 	"github.com/gophercloud/gophercloud/v2/openstack/blockstorage/v3/snapshots"
@@ -35,7 +34,6 @@ var FakeVolName = "CSIVolumeName"
 var FakeVolID = "CSIVolumeID"
 var FakeSnapshotName = "CSISnapshotName"
 var FakeSnapshotID = "261a8b81-3660-43e5-bab8-6470b65ee4e8"
-var FakeBackupID = "67589b87-91e3-4c2f-8fa8-d53eed89ca56"
 var FakeCapacityGiB = 1
 var FakeVolType = ""
 var FakeAvailability = "nova"
@@ -53,7 +51,6 @@ var FakeAttachment = volumes.Attachment{
 var FakeVol = volumes.Volume{
 	ID:               FakeVolID,
 	Name:             FakeVolName,
-	Status:           "available",
 	Size:             FakeCapacityGiB,
 	AvailabilityZone: FakeAvailability,
 }
@@ -102,17 +99,6 @@ var FakeSnapshotRes = snapshots.Snapshot{
 	Status:   "available",
 }
 
-var FakeBackupRes = backups.Backup{
-	ID:         FakeBackupID,
-	Name:       "fake-backup",
-	VolumeID:   FakeVolID,
-	SnapshotID: FakeSnapshotID,
-	CreatedAt:  time.Now(),
-
-	Size:   1,
-	Status: "available",
-}
-
 var FakeSnapshotsRes = []snapshots.Snapshot{FakeSnapshotRes}
 
 var FakeVolListMultiple = []volumes.Volume{FakeVol1, FakeVol3}
@@ -122,8 +108,6 @@ var FakeSnapshotListEmpty = []snapshots.Snapshot{}
 var FakeBackupListEmpty = []backups.Backup{}
 
 var FakeInstanceID = "321a8b81-3660-43e5-bab8-6470b65ee4e8"
-
-var FakeAttachmentID = "fake-attachment-id"
 
 const FakeMaxVolume int64 = 256
 
