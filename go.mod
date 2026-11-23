@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/container-storage-interface/spec v1.13.0
 	github.com/google/uuid v1.6.0
+	github.com/gophercloud/gophercloud v1.14.1
 	github.com/gophercloud/gophercloud/v2 v2.15.0
 	github.com/gophercloud/utils/v2 v2.0.0-20260922174841-b4759ea0529b
 	github.com/hashicorp/go-version v1.9.0
