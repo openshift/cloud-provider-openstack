@@ -21,12 +21,25 @@ RUN dnf install -y --setopt=tsflags=nodocs \
 
 WORKDIR /build
 
-# Build application packages, transitive dependencies, and isolated build
-# dependencies from source. Disable the cache to exclude downloaded wheels.
-COPY images/osbrick-sidecar/requirements-runtime.txt images/osbrick-sidecar/requirements-build.txt images/osbrick-sidecar/constraints-build.txt ./
-# RHEL's pip 23.3 propagates PIP_CONSTRAINT into isolated build environments.
-RUN PIP_CONSTRAINT=/build/constraints-build.txt python3 -m pip wheel \
-    --no-cache-dir --no-binary=:all: --wheel-dir=/wheels -r requirements-build.txt
+# Stage sources before building. Pip and its isolated build environments
+# only see hash-verified source archives; Cargo uses vendored crates.
+COPY images/osbrick-sidecar/staged/ /opt/osbrick-sources/
+ARG OSBRICK_PIP_SOURCES=/opt/osbrick-sources/pip
+ARG OSBRICK_CARGO_VENDOR=/opt/osbrick-sources/cargo/vendor
+COPY images/osbrick-sidecar/requirements-runtime.txt \
+     images/osbrick-sidecar/requirements-build.txt \
+     images/osbrick-sidecar/requirements-sources.txt \
+     images/osbrick-sidecar/requirements-backends.txt \
+     images/osbrick-sidecar/stage-sources.py ./
+RUN python3 stage-sources.py "$OSBRICK_PIP_SOURCES" /build/sdists \
+    && test -d "$OSBRICK_CARGO_VENDOR" \
+    && mkdir /build/cargo-home \
+    && printf '[source.crates-io]\nreplace-with = "vendored-sources"\n[source.vendored-sources]\ndirectory = "%s"\n' \
+        "$OSBRICK_CARGO_VENDOR" > /build/cargo-home/config.toml \
+    && PIP_NO_INDEX=1 PIP_FIND_LINKS=/build/sdists PIP_DISABLE_PIP_VERSION_CHECK=1 \
+        CARGO_HOME=/build/cargo-home CARGO_NET_OFFLINE=true \
+        python3 -m pip wheel --no-cache-dir --no-binary=:all: --require-hashes \
+        --wheel-dir=/wheels -r requirements-sources.txt
 
 # Install the generation toolchain without accessing an index.
 RUN python3 -m pip install --no-cache-dir --no-index --only-binary=:all: \

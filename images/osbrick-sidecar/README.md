@@ -1,7 +1,8 @@
 # OpenShift os-brick sidecar
 
-This is a source-build candidate for validation by the PR's `ci/prow/images`
-job. The current Dockerfile has not been built and tested end to end.
+This image builds its Python packages from staged source archives. The image
+build does not fetch Python or Rust sources. The `dnf` steps still need the
+configured RPM repositories or prefetched RPMs.
 
 ## Dependency policy
 
@@ -19,11 +20,15 @@ job. The current Dockerfile has not been built and tested end to end.
 `sidecar/requirements.txt`. `requirements-build.txt` adds the matching
 `grpcio-tools` generator. Upstream sidecar requirements remain unchanged.
 
-`constraints-build.txt` pins dnspython's uv_build backend to 0.9.21, which
-declares Rust 1.89. The earlier source-build attempt selected uv_build 0.12.24
-and failed because it required Rust 1.97 while the tested RHEL toolchain was
-1.92. RHEL's pip 23.3 propagates `PIP_CONSTRAINT` into isolated build
-environments. Recheck this mechanism when upgrading pip.
+`requirements-sources.txt` locks the application and gRPC generator closure.
+`requirements-backends.txt` locks the isolated build requirements. Both files
+pin source archives by SHA-256. The builder copies only matching archives into
+pip's local search directory, including `uv_build` 0.9.21, which is compatible
+with the RHEL 10 Rust 1.92 toolchain. When refreshing the locks, resolve for
+CPython 3.12 and check the isolated backend closure with `pybuild-deps` and an
+offline wheel build. Hash only the sdist for each pin. Keep build constraints
+such as gRPC's exact Cython version and charset-normalizer's setuptools
+upper bound when choosing shared backend versions.
 
 The runtime uses `/opt/venv` without system site packages, pip, compilers, or
 `grpcio-tools`. Generated stubs overwrite the checked-in copies. A system-path
@@ -37,9 +42,8 @@ check fails the image build. This is not a storage attach/detach test.
 
 Source builds are slow. gRPC compilation defaults to two compiler jobs;
 `GRPC_PYTHON_BUILD_EXT_COMPILER_JOBS` is a build argument. The companion
-`openshift/release` change removes the injected EL9 OpenStack repository and
-requests 2 CPUs and 6 GiB of memory for this image, with an 8 GiB memory limit.
-Check CI build duration and peak memory before tuning these settings.
+`openshift/release` change removes the injected EL9 OpenStack repository. A
+Prow run must also stage the Python and Rust sources before the image build.
 
 After CI produces an image, the smoke test can also be run without rebuilding:
 
@@ -50,13 +54,52 @@ podman run --rm --network=none --entrypoint python3 \
   <image-built-by-ci> /tmp/smoke-test.py
 ```
 
-## Remaining packaging work
+## Stage sources before the build
 
-This build is source-only for Python packages, but it is not yet integrated
-with Cachito or configured for a hermetic production build. Pip still accesses
-PyPI, and Cargo fetches Rust source dependencies. Lock transitive packages,
-build backends, and Rust dependencies; prefetch approved sources with hashes;
-and validate an offline build before production packaging.
+Fetch the sdists in both requirements locks through the approved prefetch
+pipeline. For Hermeto's `pip` input, use `images/osbrick-sidecar` as the package
+path and set `requirements_files` to `["requirements-sources.txt"]` and
+`requirements_build_files` to `["requirements-backends.txt"]`. Supply the
+resulting flat sdist directory as `PREFETCHED_PIP` below. If this Hermeto
+version also scans Python archives for Cargo dependencies, set
+`pip.ignore_dependencies_crates: true` for the Python prefetch and handle
+Cargo separately. Strict Cargo prefetch rejects the original `uv_build`
+lockfile.
+
+`uv_build` and its build backend, `maturin`, each need vendored crates. Extract
+their Cargo workspaces from the verified sdists before Cargo prefetch. The
+`uv_build` sdist ships a lockfile with entries for workspace members that it
+omits. The extraction helper supplies a normalized lockfile that adds no
+registry dependencies and leaves the staged sdist unchanged.
+
+To prepare a build context manually in an environment approved for prefetch,
+run from the repository root:
+
+```sh
+sidecar=$PWD/images/osbrick-sidecar
+work=$(mktemp -d)
+python3 "$sidecar/stage-sources.py" "$PREFETCHED_PIP" "$work/pip" \
+  --rust-workspaces "$work/rust"
+mkdir -p "$sidecar/staged/cargo"
+cargo vendor --locked --versioned-dirs \
+  --manifest-path "$work"/rust/uv-build/*/Cargo.toml \
+  --sync "$work"/rust/maturin/*/Cargo.toml \
+  "$sidecar/staged/cargo/vendor"
+cp -a "$work/pip" "$sidecar/staged/pip"
+podman build -f "$sidecar/Dockerfile" .
+```
+
+Start with an empty `staged/` directory apart from `.gitignore`. Do not commit
+prefetched artifacts. A build system that mounts the bundle can set the
+`OSBRICK_PIP_SOURCES` and `OSBRICK_CARGO_VENDOR` build arguments instead. The
+Dockerfile configures Cargo's source replacement in `CARGO_HOME` because pip
+unpacks the sdists into temporary directories outside the prefetch workspace.
+
+Prow source delivery and downstream Konflux onboarding still need validation.
+Test with public egress blocked. If the downstream build is fully hermetic,
+ART must also provide the RPMs through its prefetch path.
+
+## Storage validation
 
 The image retains iSCSI, multipath, SCSI, sysfs, and sudo utilities. Ceph's
 `rbd` command and Python `rados`/`rbd` bindings are not supplied by installing
